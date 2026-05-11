@@ -1,12 +1,85 @@
+<?php
+/* ══════════════════════════════════════════════
+   home.php  —  GOAEC Front-End Homepage
+══════════════════════════════════════════════ */
+require_once __DIR__ . '../includes/db.php';
+
+/* ── Fetch menus ─────────────────────────────────────────── */
+ $all_menus = [];
+ $r = $conn->query("SELECT * FROM menus WHERE (is_deleted=0 OR is_deleted IS NULL) AND status=1 AND deleted_at IS NULL ORDER BY menu_order ASC");
+while ($row = $r->fetch_assoc()) { $all_menus[] = $row; }
+
+ $menu_tree = []; $children = [];
+foreach ($all_menus as $m) {
+    if (empty($m['parent_id']) || $m['parent_id'] == 0) {
+        $menu_tree[] = $m;
+    } else {
+        $children[$m['parent_id']][] = $m;
+    }
+}
+
+ $VISIBLE_MENU_COUNT = 7;
+ $visible_menus  = array_slice($menu_tree, 0, $VISIBLE_MENU_COUNT);
+ $overflow_menus = array_slice($menu_tree, $VISIBLE_MENU_COUNT);
+
+/* ── Fetch site settings ─────────────────────────────────── */
+ $site     = $conn->query("SELECT * FROM site_settings LIMIT 1")->fetch_assoc();
+ $logo_url = BASE_URL . 'uploads/' . ($site['site_logo'] ?? '');
+ $site_title    = htmlspecialchars($site['site_title']    ?? 'GOAEC');
+ $site_tagline  = htmlspecialchars($site['site_tagline']  ?? 'Ocean Conservation');
+
+/* ── Helper: build menu link ─────────────────────────────── */
+function menu_url(string $link): string {
+    if (empty($link)) return '#';
+    if (str_starts_with($link, 'http') || str_starts_with($link, '#')) return $link;
+    if (str_starts_with($link, '/')) return $link;
+    return BASE_URL . 'page.php?slug=' . ltrim($link, '/');
+}
+
+/* ── Icons map for menu slugs ────────────────────────────── */
+ $menu_icons = [
+    'home'=>'lucide:home','about'=>'lucide:info','about-us'=>'lucide:info',
+    'gallery'=>'lucide:image','contact'=>'lucide:mail','contact-us'=>'lucide:mail',
+    'leadership'=>'lucide:users','our-team'=>'lucide:users','team'=>'lucide:users',
+    'what-we-do'=>'lucide:compass','programmes'=>'lucide:compass','programs'=>'lucide:compass',
+    'partners'=>'lucide:globe','news'=>'lucide:newspaper','research'=>'lucide:book-open',
+    'events'=>'lucide:calendar','donate'=>'lucide:heart','volunteer'=>'lucide:hand-helping',
+    'careers'=>'lucide:briefcase','press'=>'lucide:megaphone','media'=>'lucide:film',
+    'publications'=>'lucide:file-text','impact'=>'lucide:bar-chart-3','ocean'=>'lucide:waves',
+    'marine'=>'lucide:fish','coral'=>'lucide:flower-2','mangrove'=>'lucide:trees',
+    'education'=>'lucide:graduation-cap','policy'=>'lucide:scroll','reports'=>'lucide:file-bar-chart',
+    'blog'=>'lucide:pen-line','faq'=>'lucide:help-circle','terms'=>'lucide:shield',
+    'privacy'=>'lucide:lock','services'=>'lucide:settings','projects'=>'lucide:folder',
+    'mission'=>'lucide:target','vision'=>'lucide:eye','values'=>'lucide:heart-handshake',
+    'history'=>'lucide:clock','governance'=>'lucide:landmark','financials'=>'lucide:wallet',
+    'annual-report'=>'lucide:book-open','sustainability'=>'lucide:leaf','climate'=>'lucide:cloud-sun',
+    'biodiversity'=>'lucide:bug','fisheries'=>'lucide:fish','plastic'=>'lucide:recycle',
+    'deep-sea'=>'lucide:anchor','whale'=>'lucide:droplets','seagrass'=>'lucide:sprout',
+    'cleanup'=>'lucide:sparkles','sanctuary'=>'lucide:shield-check','expedition'=>'lucide:compass',
+];
+function get_icon(array $menu): string {
+    global $menu_icons;
+    $slug = strtolower($menu['slug'] ?? '');
+    $link = strtolower($menu['link'] ?? '');
+    $title = strtolower($menu['title'] ?? '');
+    if (isset($menu_icons[$slug])) return $menu_icons[$slug];
+    if (isset($menu_icons[$link])) return $menu_icons[$link];
+    if (isset($menu_icons[$title])) return $menu_icons[$title];
+    foreach ($menu_icons as $key => $icon) {
+        if (strpos($slug, $key) !== false || strpos($title, $key) !== false) return $icon;
+    }
+    return 'lucide:circle';
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GOAEC — Global Ocean &amp; Aquatic Environmental Conservation</title>
+<title><?= $site_title ?> — Global Ocean &amp; Aquatic Environmental Conservation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@300;400&family=Josefin+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
 <style>
 :root{
@@ -16,6 +89,7 @@
   --muted:#64748B;--ink:#0F172A;
   --cormorant:'Cormorant Garamond',serif;
   --dm:'DM Sans',sans-serif;
+  --josefin:'Josefin Sans',sans-serif;
   --mono:'JetBrains Mono',monospace;
   --ease-out-expo:cubic-bezier(0.16,1,0.3,1);
   --ease-in-out-quart:cubic-bezier(0.76,0,0.24,1);
@@ -28,12 +102,160 @@ body{font-family:var(--dm);background:var(--white);color:var(--ink);overflow-x:h
 ::-webkit-scrollbar-thumb{background:var(--sky);border-radius:3px}
 img{display:block;max-width:100%}
 
+/* ═══ FLOATING WHITE PILL NAV ═══ */
+.site-header{background:transparent!important;padding:14px 20px!important;position:fixed!important;top:0!important;left:0!important;right:0!important;z-index:8000!important;height:auto!important;border-bottom:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:none!important;transition:padding .4s ease,opacity .6s ease!important;opacity:0;pointer-events:none}
+.site-header.nav-visible{opacity:1;pointer-events:all}
+.site-header.scrolled{padding:10px 20px!important}
+.header-container{max-width:1080px!important;margin:0 auto!important;display:flex!important;justify-content:space-between!important;align-items:center!important;height:62px!important;background:rgba(255,255,255,0.92)!important;backdrop-filter:blur(20px)!important;-webkit-backdrop-filter:blur(20px)!important;border-radius:16px!important;padding:0 20px!important;border:1px solid rgba(14,165,201,0.1)!important;box-shadow:0 4px 40px rgba(0,0,0,0.06)!important;transition:background .4s ease,box-shadow .4s ease!important}
+.site-header.scrolled .header-container{background:rgba(255,255,255,0.97)!important;box-shadow:0 4px 40px rgba(0,0,0,0.1)!important}
+.logo-container{display:flex!important;flex-direction:row!important;align-items:center!important;gap:10px!important;margin-right:.25rem!important;text-decoration:none!important;transition:opacity .3s ease!important}
+.logo-container:hover{opacity:.85!important}
+.logo-image{margin-right:0!important;flex-shrink:0!important}
+.logo-image img{height:36px!important;width:36px!important;border-radius:10px!important;object-fit:contain!important;border:none!important;filter:none!important;box-shadow:0 0 16px rgba(14,165,201,0.25)!important;transition:transform .3s ease!important;background:var(--white);padding:2px}
+.logo-image img:hover{transform:scale(1.06)!important}
+.logo-text{display:flex!important;flex-direction:column!important;align-items:flex-start!important;white-space:nowrap!important}
+.logo-text .ideal{font-family:var(--josefin),sans-serif!important;font-size:1rem!important;font-weight:700!important;line-height:1.15!important;letter-spacing:.08em!important;text-transform:uppercase!important;color:var(--ink)!important;background:none!important;-webkit-background-clip:unset!important;-webkit-text-fill-color:var(--ink)!important;background-clip:unset!important;margin-bottom:0!important}
+.logo-text .institute{font-family:var(--josefin),sans-serif!important;font-size:.52rem!important;font-weight:400!important;letter-spacing:.1em!important;text-transform:uppercase!important;color:var(--sky)!important;-webkit-text-fill-color:var(--sky)!important;line-height:1.2!important}
+.main-nav{display:flex!important;align-items:center!important;margin-left:auto!important}
+.nav-list{display:flex!important;list-style:none!important;align-items:center!important;gap:0!important;margin-right:.25rem!important}
+.nav-item{margin-left:0!important;position:relative!important}
+.nav-link{color:var(--muted)!important;text-decoration:none!important;font-family:var(--josefin),sans-serif!important;font-weight:500!important;font-size:.68rem!important;letter-spacing:.08em!important;text-transform:uppercase!important;transition:color .3s ease,background .3s ease!important;display:flex!important;align-items:center!important;position:relative!important;padding:7px 9px!important;cursor:pointer!important;border-radius:8px!important;white-space:nowrap!important}
+.nav-link::after{content:''!important;position:absolute!important;bottom:2px!important;left:50%!important;transform:translateX(-50%)!important;height:1.5px!important;background:var(--sky)!important;border-radius:1px!important;width:0!important;transition:width .3s var(--ease-out-expo)!important}
+.nav-link:hover::after,.nav-link.active::after,.nav-item:hover>.nav-link::after{width:calc(100% - 18px)!important}
+.nav-link:hover{color:var(--sky)!important}
+.nav-link.active{color:var(--sky)!important}
+.dropdown-arrow{margin-left:4px!important;font-size:.55rem!important;transition:transform .3s ease,color .3s ease!important;color:var(--slate)!important}
+.nav-item:hover>.nav-link .dropdown-arrow{transform:rotate(180deg)!important;color:var(--sky)!important}
+.dropdown{position:absolute!important;top:calc(100% + 8px)!important;left:0!important;background:rgba(255,255,255,0.98)!important;border:1px solid rgba(14,165,201,0.12)!important;min-width:220px!important;box-shadow:0 8px 40px rgba(0,0,0,0.1),0 2px 8px rgba(0,0,0,0.05)!important;border-radius:14px!important;z-index:100!important;padding:8px!important;opacity:0!important;visibility:hidden!important;transform:translateY(10px)!important;pointer-events:none!important;transition:opacity .22s ease,transform .22s var(--ease-out-expo),visibility .22s ease!important;backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important}
+.dropdown::before{content:''!important;position:absolute!important;top:-10px!important;left:0!important;width:100%!important;height:10px!important;background:transparent!important}
+.dropdown::after{content:''!important;position:absolute!important;top:-5px!important;left:50%!important;transform:translateX(-50%)!important;width:10px!important;height:6px!important;background:rgba(14,165,201,0.12)!important;clip-path:polygon(50% 0%,0% 100%,100% 100%)!important}
+@media(min-width:769px){.nav-item:hover>.dropdown{opacity:1!important;visibility:visible!important;transform:translateY(0)!important;pointer-events:auto!important}}
+.dropdown-item{display:flex!important;align-items:center!important;gap:8px!important;padding:9px 14px!important;color:var(--muted)!important;text-decoration:none!important;font-family:var(--josefin),sans-serif!important;font-size:.69rem!important;letter-spacing:.12em!important;text-transform:uppercase!important;border-bottom:none!important;border-radius:9px!important;cursor:pointer!important;transition:color .2s ease,background .2s ease,padding-left .2s ease!important;position:relative!important;overflow:hidden!important}
+.dropdown-item::before{display:none!important}
+.dropdown-item:last-child{border-bottom:none!important}
+.dropdown-item:hover{background:rgba(14,165,201,0.07)!important;color:var(--sky)!important;padding-left:20px!important}.dropdown-item:hover .dropdown-item-title{color:var(--sky)!important}
+.dropdown-item-icon{display:none!important}
+
+.dropdown-item-text{flex:1!important;display:contents!important}
+.dropdown-item-title{font-family:var(--josefin),sans-serif!important;font-size:.69rem!important;font-weight:500!important;color:var(--muted)!important;display:block!important;letter-spacing:.12em!important;text-transform:uppercase!important;transition:color .2s ease!important;line-height:1.5!important;white-space:normal!important}
+.dropdown-item-sub{display:none!important}
+.more-trigger{color:var(--muted)!important;text-decoration:none!important;font-family:var(--josefin),sans-serif!important;font-weight:500!important;font-size:.68rem!important;letter-spacing:.08em!important;text-transform:uppercase!important;transition:color .3s ease!important;display:flex!important;align-items:center!important;gap:5px!important;position:relative!important;padding:7px 9px!important;cursor:pointer!important;border-radius:8px!important;white-space:nowrap!important}
+.more-trigger::after{display:none!important}
+.more-item:hover>.more-trigger{color:var(--sky)!important}
+.more-chevron{font-size:.5rem!important;color:var(--slate)!important;transition:transform .3s ease,color .3s ease!important;display:inline-block!important}
+.more-item:hover>.more-trigger .more-chevron{transform:rotate(180deg)!important;color:var(--sky)!important}
+.more-panel{position:absolute!important;top:calc(100% + 10px)!important;right:0!important;min-width:240px!important;background:rgba(255,255,255,0.98)!important;border:1px solid rgba(14,165,201,0.12)!important;box-shadow:0 12px 48px rgba(0,0,0,0.1),0 2px 8px rgba(0,0,0,0.05)!important;border-radius:16px!important;z-index:100!important;padding:8px!important;list-style:none!important;opacity:0!important;visibility:hidden!important;transform:translateY(8px)!important;pointer-events:none!important;transition:opacity .25s var(--ease-out-expo),transform .28s var(--ease-out-expo),visibility .25s ease!important;backdrop-filter:blur(20px)!important;-webkit-backdrop-filter:blur(20px)!important}
+.more-panel::before{content:''!important;position:absolute!important;top:-10px!important;left:0!important;width:100%!important;height:10px!important;background:transparent!important}
+.more-panel::after{content:''!important;position:absolute!important;top:-5px!important;right:24px!important;width:10px!important;height:6px!important;background:rgba(14,165,201,0.12)!important;clip-path:polygon(50% 0%,0% 100%,100% 100%)!important}
+@media(min-width:769px){.more-item:hover>.more-panel{opacity:1!important;visibility:visible!important;transform:translateY(0)!important;pointer-events:auto!important}.more-item>.dropdown{display:none!important}}
+.more-panel li a{display:flex!important;align-items:center!important;gap:8px!important;padding:9px 14px!important;color:var(--muted)!important;text-decoration:none!important;font-family:var(--josefin),sans-serif!important;border-bottom:none!important;border-radius:10px!important;cursor:pointer!important;transition:all .2s ease!important}
+.more-panel li a:last-child{border-bottom:none!important}
+.more-panel li a:hover{background:rgba(14,165,201,0.07)!important;color:var(--sky)!important;padding-left:20px!important}
+.more-panel .dropdown-item-icon{display:none!important;border:1px solid rgba(14,165,201,0.1)!important;display:flex!important;align-items:center!important;justify-content:center!important;color:var(--sky)!important;transition:all .25s var(--ease-out-expo)!important}
+
+.more-panel .dropdown-item-title{font-family:var(--josefin),sans-serif!important;font-size:.69rem!important;font-weight:500!important;color:var(--muted)!important;display:block!important;letter-spacing:.12em!important;text-transform:uppercase!important;line-height:1.5!important;white-space:normal!important}
+.nav-apply-btn{position:relative!important;display:inline-flex!important;align-items:center!important;gap:6px!important;padding:8px 16px!important;margin-left:8px!important;background:linear-gradient(135deg,var(--sky),var(--ocean))!important;color:#ffffff!important;font-family:var(--josefin),sans-serif!important;font-weight:600!important;font-size:.65rem!important;letter-spacing:.08em!important;text-decoration:none!important;text-transform:uppercase!important;border-radius:9px!important;overflow:hidden!important;z-index:1!important;box-shadow:0 4px 20px rgba(14,165,201,0.25)!important;transition:all .3s ease!important;white-space:nowrap!important}
+.nav-apply-btn::before{display:none!important}
+.nav-apply-btn:hover{transform:translateY(-1px)!important;box-shadow:0 4px 30px rgba(14,165,201,0.4)!important;color:#ffffff!important}
+.nav-apply-btn:active{transform:translateY(0)!important}
+.menu-toggle{display:none!important;background:none!important;border:1px solid rgba(14,165,201,0.18)!important;border-radius:10px!important;color:var(--muted)!important;font-size:1.1rem!important;cursor:pointer!important;transition:all .3s ease!important;width:36px!important;height:36px!important;align-items:center!important;justify-content:center!important;flex-shrink:0!important}
+.menu-toggle:hover{border-color:var(--sky)!important;background:rgba(14,165,201,0.07)!important;color:var(--sky)!important}
+.toggle-icon,.toggle-icon::before,.toggle-icon::after{display:block;width:18px;height:1.5px;background-color:var(--muted);border-radius:2px;transition:transform .35s ease,opacity .25s ease,top .35s ease;position:relative}
+.toggle-icon{margin:4px 0}
+.toggle-icon::before{content:'';position:absolute;top:-7px;left:0}
+.toggle-icon::after{content:'';position:absolute;top:7px;left:0}
+#menuToggle.nav-is-open .toggle-icon{background-color:transparent!important}
+#menuToggle.nav-is-open .toggle-icon::before{top:0!important;transform:rotate(45deg)!important;background-color:var(--sky)!important}
+#menuToggle.nav-is-open .toggle-icon::after{top:0!important;transform:rotate(-45deg)!important;background-color:var(--sky)!important}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+@media(min-width:769px) and (hover:hover){.nav-item{animation:slideDown .45s ease forwards;opacity:0}.nav-item:nth-child(1){animation-delay:.05s}.nav-item:nth-child(2){animation-delay:.1s}.nav-item:nth-child(3){animation-delay:.15s}.nav-item:nth-child(4){animation-delay:.2s}.nav-item:nth-child(5){animation-delay:.25s}.nav-item:nth-child(6){animation-delay:.3s}.nav-item:nth-child(7){animation-delay:.35s}.nav-item:nth-child(8){animation-delay:.4s}.nav-item:nth-child(9){animation-delay:.45s}.nav-item:nth-child(10){animation-delay:.5s}}
+
+/* ═══ MOBILE NAV ═══ */
+@media screen and (max-width:768px){
+  .site-header{padding:10px 14px!important}
+  .header-container{border-radius:14px!important;height:54px!important;padding:0 14px!important}
+  .menu-toggle{display:flex!important}
+  .logo-container{flex:1!important;margin-right:8px!important}
+  .logo-text .ideal{font-size:.9rem!important}
+  .logo-text .institute{font-size:.48rem!important}
+  .main-nav{position:fixed!important;top:74px!important;left:14px!important;right:14px!important;width:auto!important;height:auto!important;max-height:calc(100vh - 86px)!important;background:rgba(255,255,255,0.98)!important;backdrop-filter:blur(20px)!important;-webkit-backdrop-filter:blur(20px)!important;border:1px solid rgba(14,165,201,0.12)!important;border-radius:14px!important;box-shadow:0 8px 40px rgba(0,0,0,0.1)!important;flex-direction:column!important;justify-content:flex-start!important;align-items:flex-start!important;padding:8px 0 24px!important;overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch!important;overscroll-behavior:contain!important;z-index:7999!important;display:none!important;margin-left:0!important}
+  .main-nav.mobile-open{display:flex!important}
+  .nav-list{flex-direction:column!important;width:100%!important;padding:0!important;margin:0!important;gap:0!important}
+  .nav-item{margin:0!important;width:100%!important;border-bottom:1px solid rgba(14,165,201,0.06)!important;animation:none!important;opacity:1!important;transform:none!important;transition:none!important}
+  .nav-item:last-child{border-bottom:none!important}
+  .nav-link{padding:13px 18px!important;width:100%!important;font-size:.72rem!important;font-weight:500!important;letter-spacing:.16em!important;justify-content:space-between!important;color:var(--ink)!important;border-radius:0!important;display:flex!important}
+  .nav-link::after{display:none!important}
+  .nav-item.mob-open>.nav-link{color:var(--sky)!important;background:rgba(14,165,201,0.04)!important}
+  .nav-item.mob-open>.nav-link .dropdown-arrow{transform:rotate(180deg)!important;color:var(--sky)!important}
+  .dropdown{position:static!important;opacity:1!important;visibility:visible!important;transform:none!important;box-shadow:none!important;background:rgba(14,165,201,0.02)!important;border:none!important;border-radius:0!important;backdrop-filter:none!important;margin:0!important;width:100%!important;padding:0!important;pointer-events:auto!important;transition:none!important;display:none!important;min-width:0!important}
+  .dropdown::before,.dropdown::after{display:none!important}
+  .nav-item.mob-open>.dropdown{display:block!important}
+  .dropdown-item{padding:11px 18px 11px 50px!important;color:var(--muted)!important;border-bottom:1px solid rgba(14,165,201,0.04)!important;border-radius:0!important;gap:12px!important}
+  .dropdown-item:last-child{border-bottom:none!important}
+  .dropdown-item:hover,.dropdown-item:active{color:var(--sky)!important;background:rgba(14,165,201,0.04)!important}
+  .dropdown-item-icon{width:30px!important;height:30px!important;border-radius:8px!important;background:rgba(14,165,201,0.06)!important;border:1px solid rgba(14,165,201,0.08)!important;color:var(--sky)!important}
+  .dropdown-item:hover .dropdown-item-icon{background:rgba(14,165,201,0.12)!important}
+  .dropdown-item-title{font-size:11.5px!important}
+  .nav-apply-btn{margin:16px 14px 8px auto!important;padding:10px 18px!important;font-size:.65rem!important;border-radius:9px!important}
+  .more-item{margin:0!important;width:100%!important;border-bottom:1px solid rgba(14,165,201,0.06)!important;position:relative!important;list-style:none!important}
+  .more-trigger{padding:13px 18px!important;width:100%!important;font-size:.72rem!important;font-weight:500!important;letter-spacing:.16em!important;justify-content:space-between!important;color:var(--ink)!important;border-radius:0!important;display:flex!important;gap:0!important}
+  .more-item.mob-open>.more-trigger{color:var(--sky)!important;background:rgba(14,165,201,0.04)!important}
+  .more-item.mob-open>.more-trigger .more-chevron{transform:rotate(180deg)!important;color:var(--sky)!important}
+  .more-panel{position:static!important;opacity:1!important;visibility:visible!important;transform:none!important;box-shadow:none!important;background:rgba(14,165,201,0.02)!important;border:none!important;border-radius:0!important;backdrop-filter:none!important;min-width:0!important;width:100%!important;padding:0!important;display:none!important;pointer-events:auto!important;transition:none!important;right:auto!important;top:auto!important}
+  .more-panel::before,.more-panel::after{display:none!important}
+  .more-item.mob-open>.more-panel{display:block!important}
+  .more-panel li a{padding:11px 18px 11px 50px!important;color:var(--muted)!important;border-bottom:1px solid rgba(14,165,201,0.04)!important;border-radius:0!important;gap:12px!important}
+  .more-panel li a:last-child{border-bottom:none!important}
+  .more-panel li a:hover,.more-panel li a:active{color:var(--sky)!important;background:rgba(14,165,201,0.04)!important}
+  .more-panel .dropdown-item-icon{width:30px!important;height:30px!important;border-radius:8px!important;background:rgba(14,165,201,0.06)!important;border:1px solid rgba(14,165,201,0.08)!important}
+  .more-panel .dropdown-item-title{font-size:11.5px!important}
+  .more-item>.dropdown{display:none!important}
+}
+@media(hover:none){
+  .menu-toggle{display:flex!important;align-items:center!important;justify-content:center!important}
+  .main-nav{position:fixed!important;top:74px!important;left:14px!important;right:14px!important;width:auto!important;height:auto!important;max-height:calc(100vh - 86px)!important;background:rgba(255,255,255,0.98)!important;backdrop-filter:blur(20px)!important;-webkit-backdrop-filter:blur(20px)!important;border:1px solid rgba(14,165,201,0.12)!important;border-radius:14px!important;box-shadow:0 8px 40px rgba(0,0,0,0.1)!important;flex-direction:column!important;justify-content:flex-start!important;align-items:flex-start!important;padding:8px 0 24px!important;overflow-y:auto!important;overflow-x:hidden!important;z-index:7999!important;display:none!important;margin-left:0!important}
+  .main-nav.mobile-open{display:flex!important}
+  .nav-apply-btn{margin-left:auto!important;margin-right:8px!important;padding:8px 14px!important;font-size:.65rem!important}
+  .main-nav.mobile-open .nav-list{flex-direction:column!important;width:100%!important;padding:0!important;margin:0!important;gap:0!important}
+  .main-nav.mobile-open .nav-item{margin:0!important;width:100%!important;border-bottom:1px solid rgba(14,165,201,0.06)!important;animation:none!important;opacity:1!important;transform:none!important;transition:none!important}
+  .main-nav.mobile-open .nav-link{padding:13px 18px!important;width:100%!important;font-size:.72rem!important;font-weight:500!important;letter-spacing:.16em!important;justify-content:space-between!important;color:var(--ink)!important;border-radius:0!important;display:flex!important}
+  .main-nav.mobile-open .nav-link::after{display:none!important}
+  .main-nav.mobile-open .nav-item.mob-open>.nav-link{color:var(--sky)!important;background:rgba(14,165,201,0.04)!important}
+  .main-nav.mobile-open .nav-item.mob-open>.nav-link .dropdown-arrow{transform:rotate(180deg)!important;color:var(--sky)!important}
+  .main-nav.mobile-open .dropdown{position:static!important;opacity:1!important;visibility:visible!important;transform:none!important;box-shadow:none!important;background:rgba(14,165,201,0.02)!important;border:none!important;backdrop-filter:none!important;display:none!important;width:100%!important;padding:0!important;border-radius:0!important;min-width:0!important}
+  .main-nav.mobile-open .dropdown::before,.main-nav.mobile-open .dropdown::after{display:none!important}
+  .main-nav.mobile-open .nav-item.mob-open>.dropdown{display:block!important}
+  .main-nav.mobile-open .dropdown-item{padding:11px 18px 11px 50px!important;color:var(--muted)!important;border-bottom:1px solid rgba(14,165,201,0.04)!important;border-radius:0!important;gap:12px!important}
+  .main-nav.mobile-open .dropdown-item:last-child{border-bottom:none!important}
+  .main-nav.mobile-open .dropdown-item-icon{width:30px!important;height:30px!important;border-radius:8px!important;background:rgba(14,165,201,0.06)!important;border:1px solid rgba(14,165,201,0.08)!important;color:var(--sky)!important}
+  .main-nav.mobile-open .dropdown-item-title{font-size:11.5px!important}
+  .main-nav.mobile-open .more-item{margin:0!important;width:100%!important;border-bottom:1px solid rgba(14,165,201,0.06)!important;position:relative!important;list-style:none!important}
+  .main-nav.mobile-open .more-trigger{padding:13px 18px!important;width:100%!important;font-size:.72rem!important;font-weight:500!important;letter-spacing:.16em!important;justify-content:space-between!important;color:var(--ink)!important;border-radius:0!important;display:flex!important;gap:0!important}
+  .main-nav.mobile-open .more-trigger::after{display:none!important}
+  .main-nav.mobile-open .more-item.mob-open>.more-trigger{color:var(--sky)!important;background:rgba(14,165,201,0.04)!important}
+  .main-nav.mobile-open .more-item.mob-open>.more-trigger .more-chevron{transform:rotate(180deg)!important;color:var(--sky)!important}
+  .main-nav.mobile-open .more-panel{position:static!important;opacity:1!important;visibility:visible!important;transform:none!important;box-shadow:none!important;background:rgba(14,165,201,0.02)!important;border:none!important;border-radius:0!important;backdrop-filter:none!important;min-width:0!important;width:100%!important;padding:0!important;display:none!important;pointer-events:auto!important;transition:none!important;right:auto!important;top:auto!important}
+  .main-nav.mobile-open .more-panel::before,.main-nav.mobile-open .more-panel::after{display:none!important}
+  .main-nav.mobile-open .more-item.mob-open>.more-panel{display:block!important}
+  .main-nav.mobile-open .more-panel li a{padding:11px 18px 11px 50px!important;color:var(--muted)!important;border-bottom:1px solid rgba(14,165,201,0.04)!important;border-radius:0!important;gap:12px!important}
+  .main-nav.mobile-open .more-panel li a:last-child{border-bottom:none!important}
+  .main-nav.mobile-open .more-panel .dropdown-item-icon{width:30px!important;height:30px!important;border-radius:8px!important;background:rgba(14,165,201,0.06)!important;border:1px solid rgba(14,165,201,0.08)!important;color:var(--sky)!important}
+  .main-nav.mobile-open .more-panel .dropdown-item-title{font-size:11.5px!important}
+  .more-item>.dropdown{display:none!important}
+}
+
 /* ═══ WAVE REVEAL ═══ */
 #wave-overlay{position:fixed;inset:0;z-index:9999;overflow:hidden;pointer-events:all}
 #overlay-bg{position:absolute;inset:0;z-index:1;background:#030D18}
-#overlay-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center;background:#030D18}
-#overlay-gradient{position:absolute;inset:0;background:linear-gradient(135deg,rgba(3,13,24,.82) 0%,rgba(11,94,138,.28) 50%,rgba(3,13,24,.78) 100%)}
-#c-top,#c-bot{position:absolute;left:0;right:0;z-index:10;will-change:transform;overflow:hidden}
+#overlay-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center center;background:#030D18}
+#overlay-gradient{position:absolute;inset:0;background:linear-gradient(135deg,rgba(3,13,24,.85) 0%,rgba(11,94,138,.25) 50%,rgba(3,13,24,.8) 100%)}
+#c-top,#c-bot{
+  position:absolute;left:0;right:0;z-index:10;overflow:hidden;
+  will-change:transform;
+  transform:translateZ(0);
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+}
 #c-top{top:0;height:52%}
 #c-bot{bottom:0;height:52%}
 .c-fill-top{position:absolute;inset:0;bottom:72px;background:linear-gradient(180deg,var(--deep) 0%,var(--navy) 50%,var(--mid) 100%)}
@@ -41,1516 +263,517 @@ img{display:block;max-width:100%}
 .wave-svg{width:100%;display:block;overflow:visible}
 #seam-glow{position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);width:1px;z-index:9;background:rgba(56,189,248,.15);box-shadow:0 0 60px 30px rgba(56,189,248,.12),0 0 120px 60px rgba(14,165,201,.06);opacity:0;transition:opacity .6s ease;pointer-events:none}
 .logo-float-wrap{position:relative;display:flex;align-items:center;justify-content:center}
-.logo-glow-ring{position:absolute;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,.2),transparent 70%);animation:logoRingPulse 3.5s ease-in-out infinite}
-.logo-glow-ring-outer{position:absolute;width:200px;height:200px;border-radius:50%;border:1px solid rgba(56,189,248,.12);animation:logoRingPulse 3.5s ease-in-out infinite 1s}
-.logo-box{width:110px;height:110px;border-radius:28px;background:linear-gradient(135deg,var(--sky) 0%,var(--foam) 60%,var(--mist) 100%);box-shadow:0 0 0 1.5px rgba(56,189,248,.4),0 0 60px rgba(14,165,201,.6),0 0 120px rgba(14,165,201,.22),0 20px 50px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;animation:logoFloat 4.5s ease-in-out infinite;position:relative;z-index:1}
+.logo-glow-ring{position:absolute;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,.12),transparent 70%);animation:logoRingPulse 3.5s ease-in-out infinite}
+.logo-glow-ring-outer{position:absolute;width:210px;height:210px;border-radius:50%;border:1px solid rgba(56,189,248,.08);animation:logoRingPulse 3.5s ease-in-out infinite 1s}
+.logo-box{width:110px;height:110px;border-radius:26px;background:#ffffff;padding:6px;box-shadow:0 0 0 2px rgba(56,189,248,.2),0 0 40px rgba(14,165,201,.3),0 16px 40px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;animation:logoFloat 4.5s ease-in-out infinite;position:relative;z-index:1}
+.logo-box img{width:100%;height:100%;object-fit:cover;border-radius:20px}
 @keyframes logoFloat{0%,100%{transform:translateY(0) rotate(0deg)}25%{transform:translateY(-10px) rotate(.5deg)}75%{transform:translateY(-6px) rotate(-.5deg)}}
-@keyframes logoRingPulse{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.2);opacity:.15}}
+@keyframes logoRingPulse{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.2);opacity:.1}}
 #overlay-center{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;padding:0 24px;text-align:center}
 .ol-emblem{opacity:0;transform:translateY(30px) scale(.85);transition:opacity 1.2s var(--ease-out-expo),transform 1.2s var(--ease-out-expo)}
 .ol-name{opacity:0;transform:translateY(22px);transition:opacity 1s var(--ease-out-expo) .3s,transform 1s var(--ease-out-expo) .3s}
 .ol-sub{opacity:0;transform:translateY(14px);transition:opacity .9s var(--ease-out-expo) .6s,transform .9s var(--ease-out-expo) .6s}
 #overlay-center.in .ol-emblem,#overlay-center.in .ol-name,#overlay-center.in .ol-sub{opacity:1;transform:none}
 .ol-wordmark{font-family:var(--cormorant);font-weight:600;font-size:clamp(3.2rem,9vw,6rem);color:#fff;letter-spacing:.14em;text-shadow:0 0 80px rgba(14,165,201,.55),0 0 160px rgba(14,165,201,.2),0 4px 40px rgba(0,0,0,.5);margin-top:24px;line-height:1}
-.ol-fullname{font-family:var(--dm);font-weight:300;font-size:clamp(.68rem,1.5vw,.9rem);color:#000080;letter-spacing:.2em;text-transform:uppercase;max-width:560px;line-height:1.8;text-align:center;margin-top:18px}
-.ol-divider{width:0;height:1px;background:linear-gradient(90deg,transparent,rgba(56,189,248,.45),transparent);margin:20px auto 0;transition:width 1s var(--ease-out-expo) .8s}
-#overlay-center.in .ol-divider{width:260px}
+.ol-fullname{font-family:var(--dm);font-weight:300;font-size:clamp(.68rem,1.5vw,.9rem);color:rgba(186,230,253,.65);letter-spacing:.2em;text-transform:uppercase;max-width:560px;line-height:1.8;text-align:center;margin-top:18px}
+.ol-divider{width:0;height:1px;background:linear-gradient(90deg,transparent,rgba(56,189,248,.4),transparent);margin:20px auto 0;transition:width 1s var(--ease-out-expo) .8s}
+#overlay-center.in .ol-divider{width:240px}
 @keyframes rippleOut{0%{transform:translate(-50%,-50%) scale(0);opacity:.7}100%{transform:translate(-50%,-50%) scale(1);opacity:0}}
 .ripple-ring{position:absolute;top:50%;left:50%;border-radius:50%;border:1px solid rgba(56,189,248,.4);width:600px;height:600px;animation:rippleOut 2.2s var(--ease-out-expo) forwards;pointer-events:none}
-@keyframes topOut{to{transform:translateY(-102%)}}
-@keyframes botOut{to{transform:translateY(102%)}}
-@keyframes logoOut{to{opacity:0;transform:scale(1.04)}}
-#wave-overlay.split #c-top{animation:topOut 1.8s var(--ease-in-out-quart) forwards}
-#wave-overlay.split #c-bot{animation:botOut 1.8s var(--ease-in-out-quart) .06s forwards}
-#wave-overlay.split #overlay-center{animation:logoOut .5s ease forwards}
-#wave-overlay.split #seam-glow{opacity:0!important;transition:opacity .3s!important}
-#wave-overlay.done{opacity:0;pointer-events:none;transition:opacity .7s ease}
+@keyframes topOut{
+  0%  {transform:translateY(0) translateZ(0)}
+  100%{transform:translateY(-107%) translateZ(0)}
+}
+@keyframes botOut{
+  0%  {transform:translateY(0) translateZ(0)}
+  100%{transform:translateY(107%) translateZ(0)}
+}
+@keyframes logoOut{
+  0%  {opacity:1;transform:translateY(0) translateZ(0)}
+  100%{opacity:0;transform:translateY(-18px) translateZ(0)}
+}
+#wave-overlay.split #c-top{animation:topOut 2.8s cubic-bezier(0.22,1,0.36,1) both}
+#wave-overlay.split #c-bot{animation:botOut 2.8s cubic-bezier(0.22,1,0.36,1) .08s both}
+#wave-overlay.split #overlay-center{animation:logoOut .65s cubic-bezier(0.4,0,1,1) both}
+#wave-overlay.split #seam-glow{opacity:0!important;transition:opacity 1s ease!important}
+#wave-overlay.done{opacity:0;pointer-events:none;transition:opacity 1.2s ease .4s}
 #spray-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:11;pointer-events:none}
 
 /* ═══ HERO ═══ */
 #hero{position:relative;width:100%;height:90vh;min-height:700px;overflow:hidden;display:flex;align-items:flex-end;background:#030D18}
 #hero-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center;z-index:0;background:#030D18}
-.hero-grad{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(3,13,24,.15) 0%,transparent 30%,transparent 55%,rgba(3,13,24,.6) 100%),linear-gradient(90deg,rgba(3,13,24,.25) 0%,transparent 60%)}
+.hero-grad{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(3,13,24,.2) 0%,transparent 25%,transparent 50%,rgba(3,13,24,.55) 85%,rgba(255,255,255,.06) 100%),linear-gradient(90deg,rgba(3,13,24,.2) 0%,transparent 50%)}
 .h-particle{position:absolute;border-radius:50%;background:rgba(56,189,248,.18);z-index:2;animation:float 0s ease-in-out infinite}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-.hero-wave{position:absolute;bottom:-2px;left:0;right:0;z-index:4}
-.scroll-cue{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;gap:10px;opacity:0;transition:opacity 1.2s ease;pointer-events:none}
+.hero-wave{position:absolute;bottom:-1px;left:0;right:0;z-index:4;line-height:0}
+.scroll-cue{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;gap:10px;opacity:0;transition:opacity 1.2s ease;pointer-events:none}
 .scroll-cue.show{opacity:1}
 .scroll-txt{font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:rgba(255,255,255,.35)}
 .scroll-bar{width:1px;height:52px;background:linear-gradient(to bottom,rgba(255,255,255,.4),transparent);position:relative;overflow:hidden}
 .scroll-bar::after{content:'';position:absolute;top:-100%;left:0;width:100%;height:100%;background:rgba(255,255,255,.8);animation:scrollDrop 2.4s ease-in-out infinite}
 @keyframes scrollDrop{0%{top:-100%}100%{top:100%}}
-
 .container{width:100%;max-width:1280px;margin:0 auto;padding:0 48px}
 @media(max-width:640px){.container{padding:0 20px}}
 .rv{opacity:0;transform:translateY(28px);transition:opacity .8s var(--ease-out-expo),transform .8s var(--ease-out-expo)}
 .rv.visible{opacity:1;transform:none}
-.rv-s{opacity:0;transform:scale(.94);transition:opacity .8s var(--ease-out-expo),transform .8s var(--ease-out-expo)}
-.rv-s.visible{opacity:1;transform:none}
 [data-delay="1"]{transition-delay:.1s}[data-delay="2"]{transition-delay:.2s}[data-delay="3"]{transition-delay:.3s}[data-delay="4"]{transition-delay:.4s}[data-delay="5"]{transition-delay:.5s}[data-delay="6"]{transition-delay:.6s}
-
-/* ═══════════════════════════════════════════════
-   SECTION HEADING — INCREASED EYEBROW / DECREASED TITLE
-════════════════════════════════════════════════ */
 .sec-head{text-align:center;margin-bottom:72px}
-.sec-eyebrow{
-  display:inline-flex;align-items:center;gap:10px;
-  /* ★ INCREASED from 11px → 14px ★ */
-  font-size:14px;font-weight:600;letter-spacing:.28em;text-transform:uppercase;
-  color:var(--sky);margin-bottom:16px;
-}
-.sec-eyebrow::before,.sec-eyebrow::after{
-  content:'';width:40px;height:1.5px;
-  background:linear-gradient(to right,transparent,var(--sky));
-}
+.sec-eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:14px;font-weight:600;letter-spacing:.28em;text-transform:uppercase;color:var(--sky);margin-bottom:16px}
+.sec-eyebrow::before,.sec-eyebrow::after{content:'';width:40px;height:1.5px;background:linear-gradient(to right,transparent,var(--sky))}
 .sec-eyebrow::after{background:linear-gradient(to left,transparent,var(--sky))}
-
-/* ★ DECREASED from clamp(42px,6vw,78px) → clamp(30px,4.2vw,50px) ★ */
-.sec-title{
-  font-family:var(--cormorant);font-weight:300;
-  font-size:clamp(30px,4.2vw,50px);line-height:1.05;
-  letter-spacing:-.01em;
-  color:var(--ink);
-}
+.sec-title{font-family:var(--cormorant);font-weight:300;font-size:clamp(30px,4.2vw,50px);line-height:1.05;letter-spacing:-.01em;color:var(--ink)}
 .sec-title.on-dark{color:#fff}
-
-.sec-title em{
-  font-style:italic;
-  color:var(--sky);
-  font-weight:400;
-  position:relative;
-  display:inline-block;
-}
-.sec-title em::after{
-  content:'';
-  position:absolute;
-  left:0; right:0;
-  bottom:-5px;
-  height:2.5px;
-  border-radius:2px;
-  background:linear-gradient(90deg, transparent, var(--sky) 20%, var(--foam) 50%, var(--sky) 80%, transparent);
-  background-size:200% 100%;
-  animation:shimmerUnderline 2.5s ease-in-out infinite;
-}
-@keyframes shimmerUnderline{
-  0%{background-position:100% 0}
-  100%{background-position:-100% 0}
-}
-
-/* ★ Reduced top margin since title is smaller ★ */
-.sec-sub{
-  font-size:15px;font-weight:300;color:var(--muted);
-  line-height:1.7;max-width:520px;margin:12px auto 0;
-}
+.sec-title em{font-style:italic;color:var(--sky);font-weight:400;position:relative;display:inline-block}
+.sec-title em::after{content:'';position:absolute;left:0;right:0;bottom:-5px;height:2.5px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--sky) 20%,var(--foam) 50%,var(--sky) 80%,transparent);background-size:200% 100%;animation:shimmerUnderline 2.5s ease-in-out infinite}
+@keyframes shimmerUnderline{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.sec-sub{font-size:15px;font-weight:300;color:var(--muted);line-height:1.7;max-width:520px;margin:12px auto 0}
 
 /* ═══ IMPACT STATISTICS ═══ */
-#impact-stats{
-  padding:130px 0 140px;
-  background:linear-gradient(180deg,#fff 0%,#f0f9ff 40%,#e0f2fe 100%);
-  position:relative;overflow:hidden;
-}
-#impact-stats::before{
-  content:'';position:absolute;top:-200px;right:-200px;
-  width:600px;height:600px;border-radius:50%;
-  background:radial-gradient(circle,rgba(14,165,201,.06),transparent 70%);
-  pointer-events:none;
-}
-#impact-stats::after{
-  content:'';position:absolute;bottom:-150px;left:-100px;
-  width:500px;height:500px;border-radius:50%;
-  background:radial-gradient(circle,rgba(56,189,248,.05),transparent 70%);
-  pointer-events:none;
-}
-
-.istat-grid{
-  display:grid;grid-template-columns:repeat(4,1fr);gap:0;
-  background:rgba(14,165,201,.08);
-  border-radius:32px;overflow:hidden;
-  box-shadow:0 24px 72px rgba(14,165,201,.08),0 0 0 1px rgba(14,165,201,.1);
-  position:relative;z-index:1;
-}
+#impact-stats{padding:100px 0 120px;background:linear-gradient(180deg,#ffffff 0%,#f0f9ff 40%,#e8f4fd 85%,#d4ecf7 100%);position:relative;overflow:hidden}
+#impact-stats::before{content:'';position:absolute;top:-200px;right:-200px;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(14,165,201,.05),transparent 70%);pointer-events:none}
+#impact-stats::after{content:'';position:absolute;bottom:-150px;left:-100px;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,.04),transparent 70%);pointer-events:none}
+.istat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:rgba(14,165,201,.06);border-radius:28px;overflow:hidden;box-shadow:0 16px 48px rgba(14,165,201,.06),0 0 0 1px rgba(14,165,201,.08);position:relative;z-index:1}
 @media(max-width:900px){.istat-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:500px){.istat-grid{grid-template-columns:1fr}}
-
-.istat-cell{
-  padding:52px 32px 48px;text-align:center;
-  background:var(--white);position:relative;
-  overflow:hidden;
-  transition:all .4s var(--ease-out-expo);
-}
-.istat-cell::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,transparent,var(--sky),transparent);
-  opacity:0;transition:opacity .4s;
-}
-.istat-cell::after{
-  content:'';position:absolute;top:50%;left:50%;
-  transform:translate(-50%,-50%);
-  width:180px;height:180px;border-radius:50%;
-  background:radial-gradient(circle,rgba(14,165,201,.06),transparent 70%);
-  opacity:0;transition:opacity .5s;pointer-events:none;
-}
-.istat-cell:hover{background:linear-gradient(180deg,#f0f9ff,#fff);z-index:2;}
+.istat-cell{padding:44px 28px 40px;text-align:center;background:var(--white);position:relative;overflow:hidden;transition:all .4s var(--ease-out-expo)}
+.istat-cell::before{content:'';position:absolute;top:0;left:0;right:0;height:2.5px;background:linear-gradient(90deg,transparent,var(--sky),transparent);opacity:0;transition:opacity .4s}
+.istat-cell::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(14,165,201,.05),transparent 70%);opacity:0;transition:opacity .5s;pointer-events:none}
+.istat-cell:hover{background:linear-gradient(180deg,#f0f9ff,#fff);z-index:2}
 .istat-cell:hover::before{opacity:1}
 .istat-cell:hover::after{opacity:1}
-.istat-icon{
-  width:54px;height:54px;border-radius:16px;
-  background:linear-gradient(135deg,rgba(14,165,201,.08),rgba(56,189,248,.14));
-  border:1px solid rgba(14,165,201,.12);
-  display:flex;align-items:center;justify-content:center;
-  margin:0 auto 24px;
-  transition:all .35s var(--ease-out-expo);
-  box-shadow:0 4px 16px rgba(14,165,201,.06);
-}
-.istat-cell:hover .istat-icon{
-  background:linear-gradient(135deg,rgba(14,165,201,.16),rgba(56,189,248,.24));
-  box-shadow:0 8px 28px rgba(14,165,201,.15);
-  transform:translateY(-3px) scale(1.05);
-}
-.istat-num{
-  font-family:var(--cormorant);font-size:clamp(52px,6.5vw,78px);
-  font-weight:300;color:var(--ocean);line-height:.95;
-  letter-spacing:-.02em;transition:color .4s;
-}
+.istat-icon{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,rgba(14,165,201,.06),rgba(56,189,248,.1));border:1px solid rgba(14,165,201,.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;transition:all .35s var(--ease-out-expo);box-shadow:0 2px 10px rgba(14,165,201,.04)}
+.istat-cell:hover .istat-icon{background:linear-gradient(135deg,rgba(14,165,201,.14),rgba(56,189,248,.2));box-shadow:0 6px 20px rgba(14,165,201,.12);transform:translateY(-3px) scale(1.05)}
+.istat-num{font-family:var(--cormorant);font-size:clamp(48px,6vw,72px);font-weight:300;color:var(--ocean);line-height:.95;letter-spacing:-.02em;transition:color .4s}
 .istat-cell:hover .istat-num{color:var(--sky)}
-.istat-sfx{font-size:.45em;font-weight:400;color:var(--sky);vertical-align:super;margin-left:2px;}
-.istat-lbl{
-  font-size:11px;font-weight:600;letter-spacing:.2em;
-  text-transform:uppercase;color:var(--muted);
-  margin-top:16px;transition:color .3s;
-}
+.istat-sfx{font-size:.45em;font-weight:400;color:var(--sky);vertical-align:super;margin-left:2px}
+.istat-lbl{font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-top:14px;transition:color .3s}
 .istat-cell:hover .istat-lbl{color:var(--ocean)}
-.istat-desc{font-size:12.5px;font-weight:300;color:var(--slate);margin-top:10px;line-height:1.55;}
-.istat-div{
-  width:28px;height:1.5px;margin:18px auto 0;
-  background:linear-gradient(to right,transparent,rgba(14,165,201,.2),transparent);
-}
-.istat-bottom-wave{margin-top:-1px;position:relative;z-index:2}
+.istat-desc{font-size:12px;font-weight:300;color:var(--slate);margin-top:8px;line-height:1.55}
+.istat-div{width:24px;height:1.5px;margin:14px auto 0;background:linear-gradient(to right,transparent,rgba(14,165,201,.18),transparent)}
 
 /* ═══ PROGRAM HIGHLIGHTS ═══ */
-#prog-highlights{
-  padding:120px 0 0;
-  background:var(--deep);
-  position:relative;overflow:hidden;
-}
-
+#prog-highlights{padding:120px 0 100px;background:var(--deep);position:relative;overflow:hidden}
 .ph-slider-outer{position:relative;width:100%}
-
-.ph-btn{
-  position:absolute;top:50%;transform:translateY(-50%);z-index:20;
-  width:52px;height:52px;border-radius:50%;
-  background:rgba(255,255,255,0.12);
-  border:1px solid rgba(56,189,248,.3);
-  display:flex;align-items:center;justify-content:center;
-  color:var(--foam);cursor:pointer;
-  transition:all .3s;
-  box-shadow:0 4px 20px rgba(0,0,0,.2);
-  backdrop-filter:blur(10px);
-}
-.ph-btn:hover{
-  background:var(--sky);color:#fff;
-  transform:translateY(-50%) scale(1.1);
-  box-shadow:0 8px 28px rgba(14,165,201,.35);
-}
+.ph-btn{position:absolute;top:50%;transform:translateY(-50%);z-index:20;width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,0.1);border:1px solid rgba(56,189,248,.25);display:flex;align-items:center;justify-content:center;color:var(--foam);cursor:pointer;transition:all .3s;box-shadow:0 4px 16px rgba(0,0,0,.18);backdrop-filter:blur(10px)}
+.ph-btn:hover{background:var(--sky);color:#fff;transform:translateY(-50%) scale(1.1);box-shadow:0 8px 28px rgba(14,165,201,.35)}
 #phBtnPrev{left:16px}
 #phBtnNext{right:16px}
-
-.ph-track-wrap{
-  position:relative;overflow:hidden;
-  padding:20px 0;cursor:grab;user-select:none;
-}
-.ph-track-wrap:active{cursor:grabbing}
-.ph-track-wrap::before{
-  content:'';position:absolute;top:0;left:0;bottom:0;width:80px;
-  background:linear-gradient(to right,var(--deep),transparent);z-index:3;pointer-events:none;
-}
-.ph-track-wrap::after{
-  content:'';position:absolute;top:0;right:0;bottom:0;width:80px;
-  background:linear-gradient(to left,var(--deep),transparent);z-index:3;pointer-events:none;
-}
-.ph-track{display:flex;gap:32px;width:max-content;will-change:transform}
-
-.ph-card{
-  width:460px;flex-shrink:0;
-  border-radius:26px;overflow:hidden;
-  background:var(--white);
-  border:1px solid rgba(14,165,201,.08);
-  box-shadow:0 4px 24px rgba(0,0,0,.05);
-  cursor:pointer;
-  transition:all .4s var(--ease-out-expo);
-  position:relative;
-}
-.ph-card::after{
-  content:'';position:absolute;top:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,var(--sky),var(--foam));
-  opacity:0;transition:opacity .4s;
-}
-.ph-card:hover{
-  box-shadow:0 24px 64px rgba(14,165,201,.14);
-  transform:translateY(-6px);
-  border-color:rgba(14,165,201,.2);
-}
+.ph-track-wrap{position:relative;overflow:hidden;padding:20px 0;cursor:grab;user-select:none}
+.ph-track-wrap::before{content:'';position:absolute;top:0;left:0;bottom:0;width:60px;background:linear-gradient(to right,var(--deep),transparent);z-index:3;pointer-events:none}
+.ph-track-wrap::after{content:'';position:absolute;top:0;right:0;bottom:0;width:60px;background:linear-gradient(to left,var(--deep),transparent);z-index:3;pointer-events:none}
+.ph-track{display:flex;gap:28px;width:max-content;will-change:transform;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.ph-card{width:440px;flex-shrink:0;border-radius:22px;overflow:hidden;background:var(--white);border:1px solid rgba(14,165,201,.06);box-shadow:0 4px 20px rgba(0,0,0,.04);cursor:pointer;transition:all .4s var(--ease-out-expo);position:relative}
+.ph-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2.5px;background:linear-gradient(90deg,var(--sky),var(--foam));opacity:0;transition:opacity .4s}
+.ph-card:hover{box-shadow:0 20px 56px rgba(14,165,201,.12);transform:translateY(-5px);border-color:rgba(14,165,201,.16)}
 .ph-card:hover::after{opacity:1}
 .ph-img{position:relative;aspect-ratio:16/10;overflow:hidden}
 .ph-img img{width:100%;height:100%;object-fit:cover;transition:transform .7s var(--ease-out-expo);display:block}
 .ph-card:hover .ph-img img{transform:scale(1.06)}
 .ph-img-grad{position:absolute;inset:0;background:linear-gradient(to top,rgba(3,13,24,.85) 0%,rgba(3,13,24,.1) 50%,transparent 100%)}
-.ph-badge{
-  position:absolute;top:16px;left:16px;
-  padding:6px 16px;border-radius:50px;
-  font-size:9.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
-  backdrop-filter:blur(10px);border:1px solid transparent;
-}
-.ph-badge-active{background:rgba(14,165,201,.25);color:var(--foam);border-color:rgba(56,189,248,.3)}
-.ph-badge-new{background:rgba(251,191,36,.2);color:#fde68a;border-color:rgba(251,191,36,.3)}
-.ph-badge-scale{background:rgba(74,222,128,.18);color:#86efac;border-color:rgba(74,222,128,.3)}
-.ph-badge-explore{background:rgba(168,85,247,.18);color:#d8b4fe;border-color:rgba(168,85,247,.3)}
-.ph-img-title{
-  position:absolute;bottom:18px;left:20px;right:20px;
-  font-family:var(--cormorant);font-size:22px;font-weight:600;
-  color:#fff;line-height:1.2;letter-spacing:-.01em;
-}
-.ph-body{padding:24px 28px 28px}
-.ph-p{font-size:13.5px;font-weight:300;color:var(--muted);line-height:1.72}
-.ph-footer{
-  display:flex;align-items:center;justify-content:space-between;
-  margin-top:20px;padding-top:18px;
-  border-top:1px solid rgba(14,165,201,.06);
-}
-.ph-loc{font-family:var(--mono);font-size:11px;color:rgba(100,116,139,.5);display:flex;align-items:center;gap:6px}
-.ph-arr{
-  width:34px;height:34px;border-radius:10px;
-  background:rgba(14,165,201,.06);border:1px solid rgba(14,165,201,.12);
-  display:flex;align-items:center;justify-content:center;
-  transition:all .3s;color:var(--sky);
-}
+.ph-badge{position:absolute;top:14px;left:14px;padding:5px 14px;border-radius:50px;font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;backdrop-filter:blur(10px);border:1px solid transparent}
+.ph-badge-active{background:rgba(14,165,201,.22);color:var(--foam);border-color:rgba(56,189,248,.25)}
+.ph-badge-new{background:rgba(251,191,36,.18);color:#fde68a;border-color:rgba(251,191,36,.25)}
+.ph-badge-scale{background:rgba(74,222,128,.15);color:#86efac;border-color:rgba(74,222,128,.25)}
+.ph-badge-explore{background:rgba(168,85,247,.15);color:#d8b4fe;border-color:rgba(168,85,247,.25)}
+.ph-img-title{position:absolute;bottom:16px;left:18px;right:18px;font-family:var(--cormorant);font-size:21px;font-weight:600;color:#fff;line-height:1.2;letter-spacing:-.01em}
+.ph-body{padding:22px 24px 26px}
+.ph-p{font-size:13px;font-weight:300;color:var(--muted);line-height:1.72}
+.ph-footer{display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:16px;border-top:1px solid rgba(14,165,201,.05)}
+.ph-loc{font-family:var(--mono);font-size:10.5px;color:rgba(100,116,139,.45);display:flex;align-items:center;gap:6px}
+.ph-arr{width:32px;height:32px;border-radius:9px;background:rgba(14,165,201,.05);border:1px solid rgba(14,165,201,.1);display:flex;align-items:center;justify-content:center;transition:all .3s;color:var(--sky)}
 .ph-card:hover .ph-arr{background:var(--sky);border-color:var(--sky);color:#fff}
 
 /* ═══ PROGRAM POPUP ═══ */
-.prog-popup-overlay{
-  position:fixed;inset:0;z-index:9000;
-  background:rgba(3,13,24,.7);backdrop-filter:blur(14px);
-  display:flex;align-items:center;justify-content:center;
-  opacity:0;pointer-events:none;transition:opacity .35s ease;padding:24px;
-}
+.prog-popup-overlay{position:fixed;inset:0;z-index:9000;background:rgba(3,13,24,.7);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .35s ease;padding:24px}
 .prog-popup-overlay.open{opacity:1;pointer-events:all}
-.prog-popup{
-  position:relative;z-index:1;
-  width:100%;max-width:700px;max-height:90vh;
-  border-radius:28px;overflow:hidden;
-  background:var(--white);
-  box-shadow:0 40px 100px rgba(0,0,0,.3);
-  transform:translateY(30px) scale(.96);
-  transition:transform .4s var(--ease-out-expo);
-}
+.prog-popup{position:relative;z-index:1;width:100%;max-width:700px;max-height:90vh;border-radius:26px;overflow:hidden;background:var(--white);box-shadow:0 40px 100px rgba(0,0,0,.3);transform:translateY(30px) scale(.96);transition:transform .4s var(--ease-out-expo)}
 .prog-popup-overlay.open .prog-popup{transform:translateY(0) scale(1)}
 .prog-popup-img{position:relative;aspect-ratio:16/9;overflow:hidden}
 .prog-popup-img img{width:100%;height:100%;object-fit:cover}
 .prog-popup-img-grad{position:absolute;inset:0;background:linear-gradient(to top,rgba(3,13,24,.9) 0%,transparent 60%)}
-.prog-popup-badge{
-  position:absolute;top:20px;left:20px;
-  padding:6px 16px;border-radius:50px;
-  font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
-  backdrop-filter:blur(10px);border:1px solid transparent;
-}
-.prog-popup-img-title{
-  position:absolute;bottom:24px;left:28px;right:28px;
-  font-family:var(--cormorant);font-size:30px;font-weight:600;
-  color:#fff;line-height:1.2;
-}
+.prog-popup-badge{position:absolute;top:20px;left:20px;padding:6px 16px;border-radius:50px;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;backdrop-filter:blur(10px);border:1px solid transparent}
+.prog-popup-img-title{position:absolute;bottom:24px;left:28px;right:28px;font-family:var(--cormorant);font-size:30px;font-weight:600;color:#fff;line-height:1.2}
 .prog-popup-body{padding:36px 32px 40px}
 .prog-popup-p{font-size:15px;font-weight:300;color:var(--muted);line-height:1.78;margin-bottom:28px}
 .prog-popup-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px}
-.prog-popup-stat{
-  padding:18px;border-radius:18px;text-align:center;
-  background:var(--off);border:1px solid rgba(14,165,201,.08);
-}
+.prog-popup-stat{padding:18px;border-radius:18px;text-align:center;background:var(--off);border:1px solid rgba(14,165,201,.08)}
 .prog-popup-stat-n{font-family:var(--cormorant);font-size:26px;font-weight:600;color:var(--sky)}
 .prog-popup-stat-l{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:4px}
-.prog-popup-close{
-  position:absolute;top:16px;right:16px;
-  width:42px;height:42px;border-radius:12px;
-  background:rgba(0,0,0,.3);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1);
-  display:flex;align-items:center;justify-content:center;cursor:pointer;
-  color:#fff;transition:all .3s;z-index:2;
-}
+.prog-popup-close{position:absolute;top:16px;right:16px;width:42px;height:42px;border-radius:12px;background:rgba(0,0,0,.3);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;transition:all .3s;z-index:2}
 .prog-popup-close:hover{background:rgba(0,0,0,.5)}
 
-/* ═══════════════════════════════════════════════
-   PARTNER GLOBE — FIXED LOGOS
-════════════════════════════════════════════════ */
-#partner-globe{
-  padding:130px 0 140px;
-  background:linear-gradient(180deg, #e0f7ff 0%, #f0fbff 40%, #ffffff 100%);
-  position:relative;overflow:hidden;
-}
-#partner-globe::before{
-  content:'';position:absolute;top:50%;left:50%;
-  transform:translate(-50%,-50%);
-  width:1000px;height:1000px;border-radius:50%;
-  background:radial-gradient(circle,rgba(14,165,201,.1),transparent 65%);
-  pointer-events:none;
-}
-#partner-globe::after{
-  content:'';position:absolute;top:-100px;right:-100px;
-  width:500px;height:500px;border-radius:50%;
-  background:radial-gradient(circle,rgba(56,189,248,.12),transparent 70%);
-  pointer-events:none;
-}
-
+/* ═══ PARTNER GLOBE ═══ */
+#partner-globe{padding:120px 0 130px;background:linear-gradient(180deg,#d4ecf7 0%,#eaf6fc 20%,#f4faff 50%,#ffffff 100%);position:relative;overflow:hidden}
+#partner-globe::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:1000px;height:1000px;border-radius:50%;background:radial-gradient(circle,rgba(14,165,201,.07),transparent 65%);pointer-events:none}
 #partner-globe .sec-eyebrow{color:var(--sky)}
-#partner-globe .sec-eyebrow::before{background:linear-gradient(to right,transparent,var(--sky))}
-#partner-globe .sec-eyebrow::after{background:linear-gradient(to left,transparent,var(--sky))}
 #partner-globe .sec-title{color:var(--ink)}
 #partner-globe .sec-title em{color:var(--sky)}
 #partner-globe .sec-sub{color:var(--muted)}
-
-.globe-scene{
-  position:relative;
-  width:580px;height:580px;
-  margin:0 auto;
-  cursor:grab;
-  user-select:none;
-}
+.globe-scene{position:relative;width:560px;height:560px;margin:0 auto;cursor:grab;user-select:none}
 .globe-scene:active{cursor:grabbing}
-@media(max-width:640px){.globe-scene{width:340px;height:340px}}
-
+@media(max-width:640px){.globe-scene{width:320px;height:320px}}
 #globe-canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:50%}
 .globe-dots-layer{position:absolute;inset:0;border-radius:50%;overflow:hidden}
-
-/* ★ FIXED: Separate card-style logo containers ★ */
-.globe-dot{
-  position:absolute;transform:translate(-50%,-50%);
-  cursor:pointer;z-index:10;
-  transition:opacity .25s, transform .25s var(--ease-out-expo);
-}
-.globe-dot-inner{
-  width:52px;height:52px;border-radius:14px;
-  display:flex;align-items:center;justify-content:center;
-  position:relative;overflow:hidden;
-  /* Strong white card with deep shadow so logos don't bleed into each other */
-  background:#ffffff;
-  box-shadow:
-    0 2px 4px rgba(0,0,0,.06),
-    0 8px 24px rgba(0,0,0,.12),
-    0 0 0 2px rgba(255,255,255,.95),
-    0 0 0 3px rgba(14,165,201,.12);
-  transition:all .3s var(--ease-out-expo);
-}
-.globe-dot-inner img{
-  width:30px;height:30px;
-  object-fit:contain;
-  position:relative;z-index:2;
-  filter:drop-shadow(0 1px 2px rgba(0,0,0,.1));
-  /* Prevent any background bleed */
-  background:transparent;
-}
-/* Removed the glass overlay that was causing image-on-image feel */
-.globe-dot:hover .globe-dot-inner{
-  box-shadow:
-    0 4px 8px rgba(0,0,0,.08),
-    0 16px 40px rgba(14,165,201,.2),
-    0 0 0 2.5px rgba(14,165,201,.4),
-    0 0 0 4px rgba(255,255,255,.95);
-  transform:scale(1.18);
-  z-index:20;
-}
-/* ★ COMPLETELY hide back-facing logos instead of showing ghosted ★ */
-.globe-dot.back{opacity:0;pointer-events:none;transform:translate(-50%,-50%) scale(.5);}
-
-.globe-hint{
-  text-align:center;margin-top:32px;
-  font-size:10px;letter-spacing:.16em;text-transform:uppercase;
-  color:rgba(11,94,138,.45);
-  display:flex;align-items:center;justify-content:center;gap:8px;
-}
-
-/* Partner Popup */
-.pp-overlay{
-  position:fixed;inset:0;z-index:9000;
-  display:flex;align-items:center;justify-content:center;
-  opacity:0;pointer-events:none;transition:opacity .35s ease;padding:24px;
-}
+.globe-dot{position:absolute;transform:translate(-50%,-50%);cursor:pointer;z-index:10;transition:opacity .25s,transform .25s var(--ease-out-expo)}
+.globe-dot-inner{width:50px;height:50px;border-radius:13px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:#ffffff;box-shadow:0 2px 4px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.12),0 0 0 2px rgba(255,255,255,.95),0 0 0 3px rgba(14,165,201,.1);transition:all .3s var(--ease-out-expo)}
+.globe-dot-inner img{width:28px;height:28px;object-fit:contain;position:relative;z-index:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,.1));background:transparent}
+.globe-dot:hover .globe-dot-inner{box-shadow:0 4px 8px rgba(0,0,0,.08),0 16px 40px rgba(14,165,201,.2),0 0 0 2.5px rgba(14,165,201,.4),0 0 0 4px rgba(255,255,255,.95);transform:scale(1.18);z-index:20}
+.globe-dot.back{opacity:0;pointer-events:none;transform:translate(-50%,-50%) scale(.5)}
+.globe-hint{text-align:center;margin-top:28px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:rgba(11,94,138,.4);display:flex;align-items:center;justify-content:center;gap:8px}
+.pp-overlay{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .35s ease;padding:24px}
 .pp-overlay.open{opacity:1;pointer-events:all}
 .pp-bg{position:absolute;inset:0;background:rgba(3,13,24,.7);backdrop-filter:blur(14px);cursor:pointer}
-.pp-box{
-  position:relative;z-index:1;
-  width:100%;max-width:460px;
-  border-radius:26px;
-  background:linear-gradient(145deg,rgba(7,26,46,.97),rgba(10,52,80,.92));
-  border:1px solid rgba(56,189,248,.15);
-  box-shadow:0 40px 100px rgba(0,0,0,.6);
-  padding:48px 40px 40px;text-align:center;
-  transform:scale(.92);transition:transform .4s var(--ease-out-expo);
-}
+.pp-box{position:relative;z-index:1;width:100%;max-width:460px;border-radius:26px;background:linear-gradient(145deg,rgba(7,26,46,.97),rgba(10,52,80,.92));border:1px solid rgba(56,189,248,.15);box-shadow:0 40px 100px rgba(0,0,0,.6);padding:48px 40px 40px;text-align:center;transform:scale(.92);transition:transform .4s var(--ease-out-expo)}
 .pp-overlay.open .pp-box{transform:scale(1)}
-.pp-close{
-  position:absolute;top:16px;right:16px;
-  width:38px;height:38px;border-radius:10px;
-  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;color:rgba(255,255,255,.4);transition:all .3s;
-}
+.pp-close{position:absolute;top:16px;right:16px;width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.4);transition:all .3s}
 .pp-close:hover{background:rgba(14,165,201,.15);color:var(--foam)}
-.pp-logo{
-  width:72px;height:72px;border-radius:20px;
-  display:flex;align-items:center;justify-content:center;
-  margin:0 auto 24px;position:relative;overflow:hidden;
-  box-shadow:0 12px 40px rgba(0,0,0,.4),0 0 0 1px rgba(255,255,255,.1);
-  background:#fff;
-}
-.pp-logo img{
-  width:48px;height:48px;object-fit:contain;position:relative;z-index:2;
-}
+.pp-logo{width:72px;height:72px;border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;position:relative;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.4),0 0 0 1px rgba(255,255,255,.1);background:#fff}
+.pp-logo img{width:48px;height:48px;object-fit:contain;position:relative;z-index:2}
 .pp-name{font-family:var(--cormorant);font-size:28px;font-weight:600;color:#fff;margin-bottom:4px}
 .pp-type{font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--foam);margin-bottom:24px}
 .pp-desc{font-size:13.5px;font-weight:300;color:rgba(255,255,255,.4);line-height:1.76;margin-bottom:28px}
 .pp-tags{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-.pp-tag{
-  padding:5px 14px;border-radius:50px;
-  font-size:10px;font-weight:500;letter-spacing:.08em;
-  background:rgba(14,165,201,.1);color:rgba(186,230,253,.7);
-  border:1px solid rgba(56,189,248,.12);
-}
-
-/* ═══ NAVIGATION BAR ═══ */
-#navbar{
-  position:fixed;top:0;left:0;right:0;z-index:8000;
-  background:transparent;
-  transition:background .5s ease, box-shadow .5s ease, backdrop-filter .5s ease;
-  pointer-events:all;
-}
-#navbar.scrolled{
-  background:rgba(3,13,24,.82);
-  backdrop-filter:blur(20px);
-  -webkit-backdrop-filter:blur(20px);
-  box-shadow:0 1px 0 rgba(56,189,248,.1), 0 8px 32px rgba(0,0,0,.28);
-}
-#nav-progress{
-  position:absolute;top:0;left:0;height:2px;width:0%;
-  background:linear-gradient(90deg,var(--sky),var(--foam),var(--sky));
-  background-size:200% 100%;
-  animation:shimmerUnderline 2s linear infinite;
-  transition:width .1s linear;z-index:1;
-}
-.nav-inner{
-  display:flex;align-items:center;justify-content:space-between;
-  height:68px;padding:0 40px;
-  max-width:1400px;margin:0 auto;
-  position:relative;z-index:2;
-}
-.nav-logo{display:flex;align-items:center;gap:11px;text-decoration:none;flex-shrink:0}
-.nav-logo-icon{
-  width:36px;height:36px;border-radius:10px;
-  background:linear-gradient(135deg,var(--sky),var(--foam));
-  box-shadow:0 0 18px rgba(14,165,201,.45);
-  display:flex;align-items:center;justify-content:center;
-  transition:box-shadow .3s, transform .3s;
-}
-.nav-logo:hover .nav-logo-icon{
-  box-shadow:0 0 28px rgba(56,189,248,.7);
-  transform:rotate(-6deg) scale(1.06);
-}
-.nav-logo-name{
-  font-family:var(--cormorant);font-size:22px;font-weight:600;
-  color:#fff;letter-spacing:.1em;
-  text-shadow:0 0 30px rgba(14,165,201,.4);
-}
-.nav-logo-tagline{
-  font-size:8px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;
-  color:rgba(56,189,248,.55);display:block;margin-top:-2px;
-}
-.nav-links{display:flex;align-items:center;gap:6px;list-style:none}
-.nav-links li{position:relative}
-.nav-links a{
-  display:flex;align-items:center;gap:6px;
-  font-size:12.5px;font-weight:500;letter-spacing:.04em;
-  color:rgba(255,255,255,.72);
-  text-decoration:none;padding:8px 14px;border-radius:10px;
-  transition:color .25s, background .25s;position:relative;
-}
-.nav-links a:hover{color:#fff;background:rgba(255,255,255,.07)}
-.nav-links a.active{color:var(--foam)}
-.nav-links a.active::after{
-  content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);
-  width:18px;height:2px;border-radius:1px;
-  background:linear-gradient(90deg,var(--sky),var(--foam));
-}
-.nav-dropdown{position:relative}
-.nav-dropdown>a::after{content:'';border:none!important}
-.nav-drop-icon{width:14px;height:14px;transition:transform .3s;opacity:.6}
-.nav-dropdown:hover .nav-drop-icon{transform:rotate(180deg);opacity:1}
-.nav-drop-menu{
-  position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);
-  min-width:220px;
-  background:rgba(6,15,30,.95);
-  border:1px solid rgba(56,189,248,.12);
-  border-radius:16px;
-  box-shadow:0 24px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(56,189,248,.06);
-  padding:10px;
-  opacity:0;pointer-events:none;
-  transform:translateX(-50%) translateY(8px);
-  transition:opacity .25s var(--ease-out-expo), transform .3s var(--ease-out-expo);
-  backdrop-filter:blur(20px);
-}
-.nav-dropdown:hover .nav-drop-menu{
-  opacity:1;pointer-events:all;transform:translateX(-50%) translateY(0);
-}
-.nav-drop-menu::before{
-  content:'';position:absolute;top:-6px;left:50%;transform:translateX(-50%);
-  width:12px;height:6px;background:rgba(56,189,248,.18);
-  clip-path:polygon(50% 0%,0% 100%,100% 100%);
-}
-.nav-drop-item{
-  display:flex;align-items:center;gap:12px;
-  padding:11px 14px;border-radius:10px;
-  text-decoration:none;transition:background .2s;cursor:pointer;
-}
-.nav-drop-item:hover{background:rgba(56,189,248,.08)}
-.nav-drop-item-icon{
-  width:32px;height:32px;border-radius:8px;flex-shrink:0;
-  background:rgba(14,165,201,.12);border:1px solid rgba(56,189,248,.15);
-  display:flex;align-items:center;justify-content:center;color:var(--foam);
-}
-.nav-drop-item-text{flex:1}
-.nav-drop-item-title{font-size:12.5px;font-weight:500;color:#fff;display:block}
-.nav-drop-item-sub{font-size:10.5px;color:rgba(255,255,255,.35);margin-top:1px;display:block}
-.nav-cta{
-  display:flex;align-items:center;gap:8px;
-  padding:10px 20px;border-radius:12px;
-  background:linear-gradient(135deg,var(--sky),var(--foam));
-  color:#fff!important;font-size:12.5px;font-weight:600;
-  letter-spacing:.04em;text-decoration:none;
-  box-shadow:0 4px 20px rgba(14,165,201,.35);
-  transition:all .3s var(--ease-out-expo);
-  flex-shrink:0;border:none;cursor:pointer;
-}
-.nav-cta:hover{box-shadow:0 8px 32px rgba(14,165,201,.55);transform:translateY(-2px)}
-.nav-ham{
-  display:none;flex-direction:column;gap:5px;
-  width:40px;height:40px;border-radius:10px;
-  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);
-  align-items:center;justify-content:center;cursor:pointer;
-  transition:background .25s;flex-shrink:0;
-}
-.nav-ham:hover{background:rgba(56,189,248,.15)}
-.nav-ham span{
-  width:20px;height:1.5px;background:#fff;border-radius:1px;
-  transition:all .35s var(--ease-out-expo);transform-origin:center;
-}
-.nav-ham.open span:nth-child(1){transform:translateY(6.5px) rotate(45deg)}
-.nav-ham.open span:nth-child(2){opacity:0;transform:scaleX(0)}
-.nav-ham.open span:nth-child(3){transform:translateY(-6.5px) rotate(-45deg)}
-#nav-mobile{
-  position:fixed;inset:0;top:68px;z-index:7999;
-  background:rgba(3,13,24,.97);
-  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
-  display:flex;flex-direction:column;
-  padding:28px 24px 40px;gap:6px;
-  opacity:0;pointer-events:none;
-  transform:translateY(-12px);
-  transition:opacity .38s var(--ease-out-expo), transform .38s var(--ease-out-expo);
-  overflow-y:auto;
-}
-#nav-mobile.open{opacity:1;pointer-events:all;transform:translateY(0)}
-.nm-link{
-  display:flex;align-items:center;gap:14px;
-  padding:16px 18px;border-radius:14px;
-  text-decoration:none;color:rgba(255,255,255,.8);
-  font-size:15px;font-weight:400;
-  border:1px solid rgba(255,255,255,.04);
-  transition:all .2s;
-}
-.nm-link:hover{background:rgba(56,189,248,.08);color:#fff;border-color:rgba(56,189,248,.15)}
-.nm-icon{
-  width:38px;height:38px;border-radius:10px;flex-shrink:0;
-  background:rgba(14,165,201,.1);border:1px solid rgba(56,189,248,.12);
-  display:flex;align-items:center;justify-content:center;color:var(--foam);
-}
-.nm-sep{height:1px;background:rgba(255,255,255,.06);margin:10px 0}
-.nm-cta{
-  margin-top:10px;padding:16px;border-radius:14px;
-  background:linear-gradient(135deg,var(--sky),var(--foam));
-  color:#fff;font-weight:600;font-size:14px;text-align:center;
-  text-decoration:none;display:block;
-  box-shadow:0 8px 28px rgba(14,165,201,.3);
-}
-@media(max-width:900px){.nav-links,.nav-cta{display:none}.nav-ham{display:flex}}
-@media(max-width:640px){.nav-inner{padding:0 20px}}
+.pp-tag{padding:5px 14px;border-radius:50px;font-size:10px;font-weight:500;letter-spacing:.08em;background:rgba(14,165,201,.1);color:rgba(186,230,253,.7);border:1px solid rgba(56,189,248,.12)}
 
 /* ═══ FOOTER ═══ */
-#site-footer{
-  background:linear-gradient(180deg,var(--abyss) 0%,#020810 100%);
-  position:relative;overflow:hidden;
-  border-top:1px solid rgba(56,189,248,.07);
-}
-#site-footer::before{
-  content:'';position:absolute;top:-200px;left:-100px;
-  width:600px;height:600px;border-radius:50%;
-  background:radial-gradient(circle,rgba(14,165,201,.05),transparent 70%);
-  pointer-events:none;
-}
-#site-footer::after{
-  content:'';position:absolute;bottom:-150px;right:-80px;
-  width:500px;height:500px;border-radius:50%;
-  background:radial-gradient(circle,rgba(56,189,248,.04),transparent 70%);
-  pointer-events:none;
-}
-
-.footer-wave{position:relative;z-index:2;margin-bottom:-1px}
-
-.footer-main{padding:80px 0 56px;position:relative;z-index:3}
-.footer-grid{
-  display:grid;
-  grid-template-columns:1.6fr 1fr 1fr 1fr;
-  gap:48px 40px;
-}
+#site-footer{background:linear-gradient(180deg,var(--abyss) 0%,#020810 100%);position:relative;overflow:hidden}
+#site-footer::before{content:'';position:absolute;top:-200px;left:-100px;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(14,165,201,.04),transparent 70%);pointer-events:none}
+.footer-main{padding:72px 0 48px;position:relative;z-index:3}
+.footer-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:44px 36px}
 @media(max-width:960px){.footer-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.footer-grid{grid-template-columns:1fr}}
-
-.footer-brand-logo{
-  display:flex;align-items:center;gap:11px;
-  text-decoration:none;margin-bottom:20px;
-}
-.footer-brand-icon{
-  width:44px;height:44px;border-radius:13px;
-  background:linear-gradient(135deg,var(--sky),var(--foam));
-  box-shadow:0 0 24px rgba(14,165,201,.4);
-  display:flex;align-items:center;justify-content:center;flex-shrink:0;
-}
-.footer-brand-name{
-  font-family:var(--cormorant);font-size:26px;font-weight:600;
-  color:#fff;letter-spacing:.1em;
-}
-.footer-brand-tag{
-  font-size:9px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;
-  color:rgba(56,189,248,.5);display:block;margin-top:-3px;
-}
-.footer-brand-desc{
-  font-size:13px;font-weight:300;color:rgba(255,255,255,.28);
-  line-height:1.78;max-width:300px;margin-bottom:28px;
-}
-.footer-socials{display:flex;gap:10px}
-.footer-social{
-  width:38px;height:38px;border-radius:10px;
-  background:rgba(255,255,255,.05);
-  border:1px solid rgba(255,255,255,.07);
-  display:flex;align-items:center;justify-content:center;
-  color:rgba(255,255,255,.35);text-decoration:none;
-  transition:all .3s var(--ease-out-expo);
-}
-.footer-social:hover{
-  background:rgba(14,165,201,.18);
-  border-color:rgba(56,189,248,.3);
-  color:var(--foam);
-  transform:translateY(-3px);
-  box-shadow:0 8px 20px rgba(14,165,201,.2);
-}
-
-.footer-col-title{
-  font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;
-  color:var(--sky);margin-bottom:22px;
-  display:flex;align-items:center;gap:8px;
-}
-.footer-col-title::after{
-  content:'';flex:1;height:1px;
-  background:linear-gradient(to right,rgba(14,165,201,.25),transparent);
-}
+.footer-brand-logo{display:flex;align-items:center;gap:11px;text-decoration:none;margin-bottom:18px}
+.footer-brand-icon{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--sky),var(--foam));box-shadow:0 0 20px rgba(14,165,201,.35);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;padding:4px}
+.footer-brand-icon img{width:100%;height:100%;object-fit:contain}
+.footer-brand-name{font-family:var(--cormorant);font-size:24px;font-weight:600;color:#fff;letter-spacing:.1em}
+.footer-brand-tag{font-size:8.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:rgba(56,189,248,.45);display:block;margin-top:-2px}
+.footer-brand-desc{font-size:12.5px;font-weight:300;color:rgba(255,255,255,.25);line-height:1.78;max-width:280px;margin-bottom:24px}
+.footer-socials{display:flex;gap:9px}
+.footer-social{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.3);text-decoration:none;transition:all .3s var(--ease-out-expo)}
+.footer-social:hover{background:rgba(14,165,201,.15);border-color:rgba(56,189,248,.25);color:var(--foam);transform:translateY(-3px);box-shadow:0 8px 20px rgba(14,165,201,.18)}
+.footer-col-title{font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--sky);margin-bottom:20px;display:flex;align-items:center;gap:8px}
+.footer-col-title::after{content:'';flex:1;height:1px;background:linear-gradient(to right,rgba(14,165,201,.2),transparent)}
 .footer-links{list-style:none;display:flex;flex-direction:column;gap:2px}
-.footer-links li a{
-  display:flex;align-items:center;gap:9px;
-  font-size:13px;font-weight:300;
-  color:rgba(255,255,255,.35);text-decoration:none;padding:7px 0;
-  transition:color .22s, gap .22s;
-  border-bottom:1px solid transparent;
-}
-.footer-links li a:hover{color:rgba(255,255,255,.85);gap:13px}
-.footer-links li a .fl-dot{
-  width:4px;height:4px;border-radius:50%;
-  background:var(--sky);opacity:.5;flex-shrink:0;
-  transition:opacity .2s,transform .2s;
-}
+.footer-links li a{display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:300;color:rgba(255,255,255,.3);text-decoration:none;padding:6px 0;transition:color .22s,gap .22s}
+.footer-links li a:hover{color:rgba(255,255,255,.8);gap:13px}
+.footer-links li a .fl-dot{width:3px;height:3px;border-radius:50%;background:var(--sky);opacity:.4;flex-shrink:0;transition:opacity .2s,transform .2s}
 .footer-links li a:hover .fl-dot{opacity:1;transform:scale(1.5)}
-
-.footer-newsletter{
-  grid-column:1/-1;
-  padding:40px 44px;
-  border-radius:24px;
-  background:linear-gradient(135deg,rgba(11,94,138,.18),rgba(14,165,201,.08));
-  border:1px solid rgba(56,189,248,.1);
-  display:flex;align-items:center;justify-content:space-between;
-  gap:28px;flex-wrap:wrap;
-}
-.footer-nl-eyebrow{
-  font-size:9px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
-  color:var(--foam);margin-bottom:6px;display:block;
-}
-.footer-nl-title{
-  font-family:var(--cormorant);font-size:24px;font-weight:300;color:#fff;
-}
+.footer-newsletter{grid-column:1/-1;padding:36px 40px;border-radius:22px;background:linear-gradient(135deg,rgba(11,94,138,.15),rgba(14,165,201,.06));border:1px solid rgba(56,189,248,.08);display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.footer-nl-eyebrow{font-size:8.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--foam);margin-bottom:5px;display:block}
+.footer-nl-title{font-family:var(--cormorant);font-size:22px;font-weight:300;color:#fff}
 .footer-nl-title em{font-style:italic;color:var(--sky)}
 .footer-nl-form{display:flex;gap:10px;flex-shrink:0;flex-wrap:wrap}
-.footer-nl-input{
-  padding:12px 18px;border-radius:12px;
-  background:rgba(255,255,255,.06);
-  border:1px solid rgba(56,189,248,.18);
-  color:#fff;font-family:var(--dm);font-size:13px;
-  outline:none;width:260px;
-  transition:border-color .25s, background .25s;
-}
-.footer-nl-input::placeholder{color:rgba(255,255,255,.25)}
-.footer-nl-input:focus{border-color:rgba(56,189,248,.45);background:rgba(255,255,255,.09)}
-.footer-nl-btn{
-  padding:12px 24px;border-radius:12px;
-  background:linear-gradient(135deg,var(--sky),var(--foam));
-  color:#fff;font-family:var(--dm);font-size:13px;font-weight:600;
-  border:none;cursor:pointer;
-  box-shadow:0 4px 16px rgba(14,165,201,.3);
-  transition:all .3s var(--ease-out-expo);
-  display:flex;align-items:center;gap:8px;white-space:nowrap;
-}
-.footer-nl-btn:hover{box-shadow:0 8px 28px rgba(14,165,201,.5);transform:translateY(-2px)}
-
-.footer-bottom{
-  padding:24px 0 30px;
-  border-top:1px solid rgba(255,255,255,.05);
-  position:relative;z-index:3;
-}
-.footer-bottom-inner{
-  display:flex;align-items:center;justify-content:space-between;
-  flex-wrap:wrap;gap:14px;
-}
-.footer-copy{font-size:11px;color:rgba(255,255,255,.15);letter-spacing:.05em}
-.footer-copy a{color:rgba(56,189,248,.35);text-decoration:none;transition:color .2s}
+.footer-nl-input{padding:11px 16px;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid rgba(56,189,248,.15);color:#fff;font-family:var(--dm);font-size:12.5px;outline:none;width:240px;transition:border-color .25s,background .25s}
+.footer-nl-input::placeholder{color:rgba(255,255,255,.2)}
+.footer-nl-input:focus{border-color:rgba(56,189,248,.4);background:rgba(255,255,255,.08)}
+.footer-nl-btn{padding:11px 22px;border-radius:11px;background:linear-gradient(135deg,var(--sky),var(--foam));color:#fff;font-family:var(--dm);font-size:12.5px;font-weight:600;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(14,165,201,.28);transition:all .3s var(--ease-out-expo);display:flex;align-items:center;gap:8px;white-space:nowrap}
+.footer-nl-btn:hover{box-shadow:0 8px 28px rgba(14,165,201,.45);transform:translateY(-2px)}
+.footer-bottom{padding:22px 0 28px;border-top:1px solid rgba(255,255,255,.04);position:relative;z-index:3}
+.footer-bottom-inner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px}
+.footer-copy{font-size:10.5px;color:rgba(255,255,255,.12);letter-spacing:.04em}
+.footer-copy a{color:rgba(56,189,248,.3);text-decoration:none;transition:color .2s}
 .footer-copy a:hover{color:var(--foam)}
-.footer-bottom-badges{display:flex;gap:10px;flex-wrap:wrap}
-.footer-badge{
-  padding:5px 12px;border-radius:50px;
-  font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
-  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
-  color:rgba(255,255,255,.22);display:flex;align-items:center;gap:6px;
-}
-.footer-badge iconify-icon{color:var(--sky);opacity:.7}
-
-@media(max-width:640px){
-  .footer-newsletter{padding:28px 20px}
-  .footer-nl-input{width:100%}
-  .footer-nl-form{width:100%}
-  .footer-nl-btn{width:100%;justify-content:center}
-  .footer-bottom-inner{flex-direction:column;align-items:flex-start}
-}
-
-/* ═══ TOAST ═══ */
+.footer-bottom-badges{display:flex;gap:9px;flex-wrap:wrap}
+.footer-badge{padding:4px 11px;border-radius:50px;font-size:8.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);color:rgba(255,255,255,.18);display:flex;align-items:center;gap:5px}
+.footer-badge iconify-icon{color:var(--sky);opacity:.6}
+@media(max-width:640px){.footer-newsletter{padding:24px 18px}.footer-nl-input{width:100%}.footer-nl-form{width:100%}.footer-nl-btn{width:100%;justify-content:center}.footer-bottom-inner{flex-direction:column;align-items:flex-start}}
 #toast{position:fixed;bottom:28px;right:28px;z-index:9998;transform:translateY(120%);opacity:0;transition:all .45s var(--ease-out-expo)}
 #toast.show{transform:translateY(0);opacity:1}
-.toast-inner{display:flex;align-items:center;gap:12px;padding:14px 20px;border-radius:14px;background:var(--white);border:1px solid rgba(14,165,201,.18);box-shadow:0 12px 40px rgba(14,165,201,.12)}
+.toast-inner{display:flex;align-items:center;gap:12px;padding:14px 20px;border-radius:14px;background:var(--white);border:1px solid rgba(14,165,201,.15);box-shadow:0 12px 40px rgba(14,165,201,.1)}
 .toast-txt{font-size:13px;font-weight:500;color:var(--ink)}
 </style>
 </head>
 <body>
 
-<!-- ═══ NAVIGATION BAR ═══ -->
-<nav id="navbar">
-  <div id="nav-progress"></div>
-  <div class="nav-inner">
-    <a href="#hero" class="nav-logo">
-      <div class="nav-logo-icon">
-        <iconify-icon icon="lucide:waves" width="18" style="color:#fff"></iconify-icon>
-      </div>
-      <div>
-        <span class="nav-logo-name">GOAEC</span>
-        <span class="nav-logo-tagline">Ocean Conservation</span>
-      </div>
-    </a>
-    <ul class="nav-links">
-      <li><a href="#hero" class="active"><iconify-icon icon="lucide:home" width="13"></iconify-icon>Home</a></li>
-      <li><a href="#impact-stats"><iconify-icon icon="lucide:bar-chart-3" width="13"></iconify-icon>Impact</a></li>
-      <li class="nav-dropdown">
-        <a href="#prog-highlights">
-          <iconify-icon icon="lucide:compass" width="13"></iconify-icon>Programs
-          <iconify-icon icon="lucide:chevron-down" width="13" class="nav-drop-icon"></iconify-icon>
-        </a>
-        <div class="nav-drop-menu">
-          <a href="#prog-highlights" class="nav-drop-item">
-            <div class="nav-drop-item-icon"><iconify-icon icon="lucide:waves" width="14"></iconify-icon></div>
-            <div class="nav-drop-item-text"><span class="nav-drop-item-title">Coral Guardians</span><span class="nav-drop-item-sub">Indo-Pacific reef restoration</span></div>
-          </a>
-          <a href="#prog-highlights" class="nav-drop-item">
-            <div class="nav-drop-item-icon"><iconify-icon icon="lucide:leaf" width="14"></iconify-icon></div>
-            <div class="nav-drop-item-text"><span class="nav-drop-item-title">Mangrove Shield</span><span class="nav-drop-item-sub">West Africa coastline</span></div>
-          </a>
-          <a href="#prog-highlights" class="nav-drop-item">
-            <div class="nav-drop-item-icon"><iconify-icon icon="lucide:recycle" width="14"></iconify-icon></div>
-            <div class="nav-drop-item-text"><span class="nav-drop-item-title">Blue Clean Initiative</span><span class="nav-drop-item-sub">SE Asia plastic removal</span></div>
-          </a>
-          <a href="#prog-highlights" class="nav-drop-item">
-            <div class="nav-drop-item-icon"><iconify-icon icon="lucide:fish" width="14"></iconify-icon></div>
-            <div class="nav-drop-item-text"><span class="nav-drop-item-title">Cetacean Sanctuary</span><span class="nav-drop-item-sub">South Pacific corridors</span></div>
-          </a>
-        </div>
-      </li>
-      <li><a href="#partner-globe"><iconify-icon icon="lucide:globe" width="13"></iconify-icon>Partners</a></li>
-      <li><a href="#site-footer"><iconify-icon icon="lucide:mail" width="13"></iconify-icon>Contact</a></li>
-    </ul>
-    <a href="#site-footer" class="nav-cta">
-      <iconify-icon icon="lucide:heart" width="14"></iconify-icon>Donate Now
-    </a>
-    <div class="nav-ham" id="navHam" aria-label="Open menu">
-      <span></span><span></span><span></span>
-    </div>
-  </div>
-</nav>
+<header class="site-header" id="siteHeader"><div class="header-container">
+<a href="<?= BASE_URL ?>" class="logo-container"><div class="logo-image"><?php if (!empty($site['site_logo'])): ?><img src="<?= $logo_url ?>" alt="<?= $site_title ?>"><?php else: ?><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'%3E%3Crect width='36' height='36' rx='10' fill='%230EA5C9'/%3E%3Ctext x='18' y='25' text-anchor='middle' font-size='20' fill='white' font-family='sans-serif' font-weight='bold'%3EG%3C/text%3E%3C/svg%3E" alt="GOAEC"><?php endif; ?></div><div class="logo-text"><span class="ideal"><?= $site_title ?></span><span class="institute"><?= $site_tagline ?></span></div></a>
+<nav class="main-nav" id="mainNav"><ul class="nav-list">
+<?php foreach ($visible_menus as $menu): $has_children = !empty($children[$menu['id']]); $href = menu_url($menu['link']); $icon = get_icon($menu); ?>
+<li class="nav-item<?php if ($has_children) echo ' has-dropdown'; ?>"><a href="<?= htmlspecialchars($href) ?>" class="nav-link"><?= htmlspecialchars($menu['title']) ?><?php if ($has_children): ?><span class="dropdown-arrow">▾</span><?php endif; ?></a><?php if ($has_children): ?><div class="dropdown"><?php foreach ($children[$menu['id']] as $child): $child_icon = get_icon($child); ?><a href="<?= htmlspecialchars(menu_url($child['link'])) ?>" class="dropdown-item"><div class="dropdown-item-icon"><iconify-icon icon="<?= $child_icon ?>" width="15"></iconify-icon></div><div class="dropdown-item-text"><span class="dropdown-item-title"><?= htmlspecialchars($child['title']) ?></span></div></a><?php endforeach; ?></div><?php endif; ?></li>
+<?php endforeach; ?>
+<?php if (!empty($overflow_menus)): ?><li class="nav-item more-item"><a href="#" class="nav-link more-trigger">More <span class="more-chevron">▾</span></a><ul class="more-panel"><?php foreach ($overflow_menus as $menu): $over_icon = get_icon($menu); ?><li><a href="<?= htmlspecialchars(menu_url($menu['link'])) ?>"><div class="dropdown-item-icon"><iconify-icon icon="<?= $over_icon ?>" width="15"></iconify-icon></div><span class="dropdown-item-title"><?= htmlspecialchars($menu['title']) ?></span></a></li><?php endforeach; ?></ul></li><?php endif; ?>
+</ul><a href="#site-footer" class="nav-apply-btn"><iconify-icon icon="lucide:heart" width="13"></iconify-icon>Donate</a><button class="menu-toggle" id="menuToggle" aria-label="Toggle menu"><span class="toggle-icon"></span></button></nav>
+</div></header>
 
-<!-- Mobile Menu -->
-<div id="nav-mobile">
-  <a href="#hero" class="nm-link"><div class="nm-icon"><iconify-icon icon="lucide:home" width="16"></iconify-icon></div>Home</a>
-  <a href="#impact-stats" class="nm-link"><div class="nm-icon"><iconify-icon icon="lucide:bar-chart-3" width="16"></iconify-icon></div>Impact &amp; Statistics</a>
-  <a href="#prog-highlights" class="nm-link"><div class="nm-icon"><iconify-icon icon="lucide:compass" width="16"></iconify-icon></div>Active Programs</a>
-  <a href="#partner-globe" class="nm-link"><div class="nm-icon"><iconify-icon icon="lucide:globe" width="16"></iconify-icon></div>Global Partners</a>
-  <div class="nm-sep"></div>
-  <a href="#prog-highlights" class="nm-link"><div class="nm-icon"><iconify-icon icon="lucide:waves" width="16"></iconify-icon></div>Coral Guardians</a>
-  <a href="#prog-highlights" class="nm-link"><div class="nm-icon"><iconify-icon icon="lucide:leaf" width="16"></iconify-icon></div>Mangrove Shield</a>
-  <a href="#prog-highlights" class="nm-link"><div class="nm-icon"><iconify-icon icon="lucide:recycle" width="16"></iconify-icon></div>Blue Clean Initiative</a>
-  <div class="nm-sep"></div>
-  <a href="#site-footer" class="nm-cta"><iconify-icon icon="lucide:heart" width="14"></iconify-icon> Donate &amp; Support GOAEC</a>
-</div>
+<div id="wave-overlay"><div id="overlay-bg"><video id="overlay-video" autoplay muted loop playsinline><source src="<?= BASE_URL ?>uploads/hero/still_improvise_more_natural_a.mp4" type="video/mp4"></video><div id="overlay-gradient"></div></div><canvas id="spray-canvas"></canvas><div id="seam-glow"></div>
+<div id="c-top"><div class="c-fill-top"></div><svg id="wave-top" class="wave-svg" viewBox="0 0 1440 90" preserveAspectRatio="none" style="height:80px;position:absolute;bottom:0;left:0;"><defs><linearGradient id="g-top" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#071A2E"/><stop offset="100%" stop-color="#0A3450"/></linearGradient><linearGradient id="foam-top" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="rgba(56,189,248,0)"/><stop offset="40%" stop-color="rgba(56,189,248,0.22)"/><stop offset="70%" stop-color="rgba(255,255,255,0.14)"/><stop offset="100%" stop-color="rgba(56,189,248,0)"/></linearGradient></defs><rect x="0" y="0" width="1440" height="10" fill="url(#g-top)"/><path id="wt1" d="M0,40 C200,85 400,-5 600,35 C800,75 1000,-5 1200,35 C1320,60 1400,20 1440,35 L1440,0 L0,0 Z" fill="url(#g-top)"/><path id="wt2" d="M0,52 C180,10 360,82 540,50 C720,18 900,80 1080,50 C1260,18 1360,64 1440,52 L1440,0 L0,0 Z" fill="rgba(10,52,80,0.6)"/><path id="wt3" d="M0,42 C200,87 400,-3 600,37 C800,77 1000,-3 1200,37 C1320,62 1400,22 1440,37" fill="none" stroke="url(#foam-top)" stroke-width="2.5"/></svg></div>
+<div id="c-bot"><svg id="wave-bot" class="wave-svg" viewBox="0 0 1440 90" preserveAspectRatio="none" style="height:80px;position:absolute;top:0;left:0;"><defs><linearGradient id="g-bot" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0B6E8C"/><stop offset="100%" stop-color="#38BDF8"/></linearGradient><linearGradient id="foam-bot" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="rgba(255,255,255,0)"/><stop offset="40%" stop-color="rgba(255,255,255,0.24)"/><stop offset="70%" stop-color="rgba(186,230,253,0.18)"/><stop offset="100%" stop-color="rgba(255,255,255,0)"/></linearGradient></defs><path id="wb1" d="M0,50 C200,5 400,90 600,55 C800,20 1000,90 1200,55 C1320,30 1400,70 1440,55 L1440,90 L0,90 Z" fill="url(#g-bot)"/><path id="wb2" d="M0,40 C180,80 360,10 540,44 C720,78 900,8 1080,44 C1260,80 1360,24 1440,40 L1440,90 L0,90 Z" fill="rgba(14,165,201,0.55)"/><path id="wb3" d="M0,52 C200,7 400,92 600,57 C800,22 1000,92 1200,57 C1320,32 1400,72 1440,57" fill="none" stroke="url(#foam-bot)" stroke-width="2.5"/></svg><div class="c-fill-bot"></div></div>
+<div id="overlay-center"><div id="ripple-cont" style="position:absolute;inset:0;pointer-events:none;overflow:hidden"></div><div class="ol-emblem"><div class="logo-float-wrap"><div class="logo-glow-ring-outer"></div><div class="logo-glow-ring"></div><div class="logo-box"><?php if (!empty($site['site_logo'])): ?><img src="<?= $logo_url ?>" alt="<?= $site_title ?>"><?php else: ?><iconify-icon icon="lucide:waves" width="48" style="color:var(--sky)"></iconify-icon><?php endif; ?></div></div></div><div class="ol-name ol-wordmark"><?= $site_title ?></div><div class="ol-divider"></div><div class="ol-sub ol-fullname">Global Oceanic Adventures &amp; Environmental<br>Conservation (GOAEC) Foundation</div></div></div>
 
-<!-- ═══ WAVE REVEAL ═══ -->
-<div id="wave-overlay">
-  <div id="overlay-bg">
-    <video id="overlay-video" autoplay muted loop playsinline>
-      <source src="myvideo.mp4" type="video/mp4">
-    </video>
-    <div id="overlay-gradient"></div>
-  </div>
-  <canvas id="spray-canvas"></canvas>
-  <div id="seam-glow"></div>
-  <div id="c-top">
-    <div class="c-fill-top"></div>
-    <svg id="wave-top" class="wave-svg" viewBox="0 0 1440 90" preserveAspectRatio="none" style="height:80px;position:absolute;bottom:0;left:0;">
-      <defs>
-        <linearGradient id="g-top" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#071A2E"/><stop offset="100%" stop-color="#0A3450"/></linearGradient>
-        <linearGradient id="foam-top" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="rgba(56,189,248,0)"/><stop offset="40%" stop-color="rgba(56,189,248,0.22)"/><stop offset="70%" stop-color="rgba(255,255,255,0.14)"/><stop offset="100%" stop-color="rgba(56,189,248,0)"/></linearGradient>
-      </defs>
-      <rect x="0" y="0" width="1440" height="10" fill="url(#g-top)"/>
-      <path id="wt1" d="M0,40 C200,85 400,-5 600,35 C800,75 1000,-5 1200,35 C1320,60 1400,20 1440,35 L1440,0 L0,0 Z" fill="url(#g-top)"/>
-      <path id="wt2" d="M0,52 C180,10 360,82 540,50 C720,18 900,80 1080,50 C1260,18 1360,64 1440,52 L1440,0 L0,0 Z" fill="rgba(10,52,80,0.6)"/>
-      <path id="wt3" d="M0,42 C200,87 400,-3 600,37 C800,77 1000,-3 1200,37 C1320,62 1400,22 1440,37" fill="none" stroke="url(#foam-top)" stroke-width="2.5"/>
-      <circle cx="200" cy="60" r="3.5" fill="rgba(255,255,255,0.22)"/><circle cx="204" cy="58" r="2" fill="rgba(255,255,255,0.13)"/>
-      <circle cx="600" cy="48" r="4" fill="rgba(255,255,255,0.18)"/><circle cx="605" cy="46" r="2.5" fill="rgba(255,255,255,0.1)"/>
-      <circle cx="1000" cy="36" r="3" fill="rgba(255,255,255,0.2)"/><circle cx="1200" cy="50" r="3.5" fill="rgba(255,255,255,0.15)"/><circle cx="1380" cy="40" r="2" fill="rgba(255,255,255,0.12)"/>
-    </svg>
-  </div>
-  <div id="c-bot">
-    <svg id="wave-bot" class="wave-svg" viewBox="0 0 1440 90" preserveAspectRatio="none" style="height:80px;position:absolute;top:0;left:0;">
-      <defs>
-        <linearGradient id="g-bot" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0B6E8C"/><stop offset="100%" stop-color="#38BDF8"/></linearGradient>
-        <linearGradient id="foam-bot" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="rgba(255,255,255,0)"/><stop offset="40%" stop-color="rgba(255,255,255,0.24)"/><stop offset="70%" stop-color="rgba(186,230,253,0.18)"/><stop offset="100%" stop-color="rgba(255,255,255,0)"/></linearGradient>
-      </defs>
-      <path id="wb1" d="M0,50 C200,5 400,90 600,55 C800,20 1000,90 1200,55 C1320,30 1400,70 1440,55 L1440,90 L0,90 Z" fill="url(#g-bot)"/>
-      <path id="wb2" d="M0,40 C180,80 360,10 540,44 C720,78 900,8 1080,44 C1260,80 1360,24 1440,40 L1440,90 L0,90 Z" fill="rgba(14,165,201,0.55)"/>
-      <path id="wb3" d="M0,52 C200,7 400,92 600,57 C800,22 1000,92 1200,57 C1320,32 1400,72 1440,57" fill="none" stroke="url(#foam-bot)" stroke-width="2.5"/>
-      <circle cx="300" cy="42" r="3.5" fill="rgba(255,255,255,0.28)"/><circle cx="304" cy="40" r="2" fill="rgba(255,255,255,0.16)"/>
-      <circle cx="700" cy="36" r="4" fill="rgba(255,255,255,0.22)"/><circle cx="1100" cy="50" r="3" fill="rgba(255,255,255,0.24)"/><circle cx="1300" cy="42" r="2.5" fill="rgba(255,255,255,0.16)"/>
-    </svg>
-    <div class="c-fill-bot"></div>
-  </div>
-  <div id="overlay-center">
-    <div id="ripple-cont" style="position:absolute;inset:0;pointer-events:none;overflow:hidden"></div>
-    <div class="ol-emblem">
-      <div class="logo-float-wrap">
-        <div class="logo-glow-ring-outer"></div>
-        <div class="logo-glow-ring"></div>
-        <div class="logo-box"><iconify-icon icon="lucide:waves" width="52" style="color:#fff;filter:drop-shadow(0 2px 12px rgba(0,0,0,.35))"></iconify-icon></div>
-      </div>
-    </div>
-    <div class="ol-name ol-wordmark">GOAEC</div>
-    <div class="ol-divider"></div>
-    <div class="ol-sub ol-fullname">Global Oceanic Adventures &amp; Environmental<br>Conservation (GOAEC) Foundation</div>
-  </div>
-</div>
+<section id="hero"><video id="hero-video" autoplay muted loop playsinline><source src="<?= BASE_URL ?>uploads/still_improvise_more_natural_a.mp4" type="video/mp4"></video><div class="hero-grad"></div><div class="h-particle" style="width:12px;height:12px;top:22%;left:14%;animation-duration:7s"></div><div class="h-particle" style="width:7px;height:7px;top:58%;left:72%;animation-duration:9s;animation-delay:1.5s"></div><div class="h-particle" style="width:9px;height:9px;top:38%;left:85%;animation-duration:11s;animation-delay:.8s"></div><div class="h-particle" style="width:5px;height:5px;top:75%;left:42%;animation-duration:8s;animation-delay:2s"></div><div class="h-particle" style="width:14px;height:14px;top:15%;left:55%;animation-duration:13s;animation-delay:.3s;background:rgba(14,165,201,.15)"></div><div class="scroll-cue" id="scroll-cue"><div class="scroll-bar"></div><span class="scroll-txt">Scroll</span></div><div class="hero-wave"><svg viewBox="0 0 1440 80" preserveAspectRatio="none" style="width:100%;height:70px;display:block"><path d="M0,40 C180,75 360,10 540,40 C720,70 900,10 1080,40 C1260,70 1380,30 1440,40 L1440,80 L0,80 Z" fill="#ffffff"/><path d="M0,40 C180,75 360,10 540,40 C720,70 900,10 1080,40 C1260,70 1380,30 1440,40" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/></svg></div></section>
 
-<!-- ═══ HERO ═══ -->
-<section id="hero">
-  <video id="hero-video" autoplay muted loop playsinline>
-    <source src="myvideo.mp4" type="video/mp4">
-  </video>
-  <div class="hero-grad"></div>
-  <div class="h-particle" style="width:12px;height:12px;top:22%;left:14%;animation-duration:7s"></div>
-  <div class="h-particle" style="width:7px;height:7px;top:58%;left:72%;animation-duration:9s;animation-delay:1.5s"></div>
-  <div class="h-particle" style="width:9px;height:9px;top:38%;left:85%;animation-duration:11s;animation-delay:.8s"></div>
-  <div class="h-particle" style="width:5px;height:5px;top:75%;left:42%;animation-duration:8s;animation-delay:2s"></div>
-  <div class="h-particle" style="width:14px;height:14px;top:15%;left:55%;animation-duration:13s;animation-delay:.3s;background:rgba(14,165,201,.15)"></div>
-  <div class="hero-wave">
-    <svg viewBox="0 0 1440 100" preserveAspectRatio="none" style="width:100%;height:80px;display:block">
-      <path d="M0,55 C360,105 720,10 1080,55 C1260,78 1380,38 1440,52 L1440,100 L0,100 Z" fill="#ffffff"/>
-    </svg>
-  </div>
-  <div class="scroll-cue" id="scroll-cue">
-    <div class="scroll-bar"></div>
-    <span class="scroll-txt">Scroll</span>
-  </div>
-</section>
+<section id="impact-stats"><div class="container"><div class="sec-head rv"><div class="sec-eyebrow">Impact Statistics</div><h2 class="sec-title">Measuring Our<br><em>Ocean Impact</em></h2><p class="sec-sub">Every number tells a story of dedication, science, and the communities who stand guard over our seas.</p></div><div class="istat-grid rv">
+<div class="istat-cell"><div class="istat-icon"><iconify-icon icon="lucide:map" width="20" style="color:var(--sky)"></iconify-icon></div><div class="istat-num"><span class="counter" data-target="5">0</span><span class="istat-sfx">M+</span></div><div class="istat-lbl">Hectares Protected</div><div class="istat-div"></div><div class="istat-desc">Marine habitats actively monitored</div></div>
+<div class="istat-cell"><div class="istat-icon"><iconify-icon icon="lucide:users" width="20" style="color:var(--sky)"></iconify-icon></div><div class="istat-num"><span class="counter" data-target="120">0</span><span class="istat-sfx">K+</span></div><div class="istat-lbl">Lives Impacted</div><div class="istat-div"></div><div class="istat-desc">Coastal communities supported</div></div>
+<div class="istat-cell"><div class="istat-icon"><iconify-icon icon="lucide:book-open" width="20" style="color:var(--sky)"></iconify-icon></div><div class="istat-num"><span class="counter" data-target="340">0</span><span class="istat-sfx">+</span></div><div class="istat-lbl">Research Papers</div><div class="istat-div"></div><div class="istat-desc">Peer-reviewed studies published</div></div>
+<div class="istat-cell"><div class="istat-icon"><iconify-icon icon="lucide:handshake" width="20" style="color:var(--sky)"></iconify-icon></div><div class="istat-num"><span class="counter" data-target="89">0</span></div><div class="istat-lbl">Partner Organisations</div><div class="istat-div"></div><div class="istat-desc">Global network, 47 countries</div></div>
+<div class="istat-cell"><div class="istat-icon"><iconify-icon icon="lucide:leaf" width="20" style="color:var(--sky)"></iconify-icon></div><div class="istat-num"><span class="counter" data-target="200">0</span><span class="istat-sfx">km</span></div><div class="istat-lbl">Mangroves Restored</div><div class="istat-div"></div><div class="istat-desc">Coastline replanted as barriers</div></div>
+<div class="istat-cell"><div class="istat-icon"><iconify-icon icon="lucide:fish" width="20" style="color:var(--sky)"></iconify-icon></div><div class="istat-num"><span class="counter" data-target="1200">0</span><span class="istat-sfx">+</span></div><div class="istat-lbl">Species Catalogued</div><div class="istat-div"></div><div class="istat-desc">Marine species in our atlas</div></div>
+<div class="istat-cell"><div class="istat-icon"><iconify-icon icon="lucide:recycle" width="20" style="color:var(--sky)"></iconify-icon></div><div class="istat-num"><span class="counter" data-target="4800">0</span><span class="istat-sfx">T</span></div><div class="istat-lbl">Plastic Removed</div><div class="istat-div"></div><div class="istat-desc">Ocean plastic collected</div></div>
+<div class="istat-cell"><div class="istat-icon"><iconify-icon icon="lucide:calendar" width="20" style="color:var(--sky)"></iconify-icon></div><div class="istat-num"><span class="counter" data-target="17">0</span><span class="istat-sfx">yr</span></div><div class="istat-lbl">Years of Impact</div><div class="istat-div"></div><div class="istat-desc">Stewardship since 2008</div></div>
+</div></div></section>
 
+<section id="prog-highlights"><div class="container"><div class="sec-head rv"><div class="sec-eyebrow" style="color:rgba(56,189,248,.7)">Program Highlights</div><h2 class="sec-title on-dark"><em>Active</em> <em>Initiatives</em></h2><p class="sec-sub" style="color:rgba(255,255,255,.35)">Drag to scroll · Click arrows</p></div></div>
+<div class="ph-slider-outer rv"><button class="ph-btn" id="phBtnPrev"><iconify-icon icon="lucide:chevron-left" width="22"></iconify-icon></button><button class="ph-btn" id="phBtnNext"><iconify-icon icon="lucide:chevron-right" width="22"></iconify-icon></button>
+<div class="ph-track-wrap rv" id="phTrackWrap"><div class="ph-track" id="ph-track">
+<div class="ph-card" onclick="openProgPopup(0)"><div class="ph-img"><img src="https://picsum.photos/seed/coral-garden-tropical-bright/800/500" alt="Coral"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-active">Active</span><div class="ph-img-title">Coral Guardians Program</div></div><div class="ph-body"><p class="ph-p">Restoring 500 hectares of degraded coral reefs across the Indo-Pacific using advanced micro-fragmentation techniques.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>Indo-Pacific · 2021</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div></div>
+<div class="ph-card" onclick="openProgPopup(1)"><div class="ph-img"><img src="https://picsum.photos/seed/deep-sea-submarine-dark-blue/800/500" alt="Abyssal"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-explore">Exploring</span><div class="ph-img-title">Abyssal Frontier Expedition</div></div><div class="ph-body"><p class="ph-p">Mapping unexplored deep-sea trenches and hydrothermal vents, discovering new species.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>Global · 2023</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div></div>
+<div class="ph-card" onclick="openProgPopup(2)"><div class="ph-img"><img src="https://picsum.photos/seed/ocean-plastic-waste-cleanup-boat/800/500" alt="Blue Clean"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-scale">Scaling</span><div class="ph-img-title">Blue Clean Initiative</div></div><div class="ph-body"><p class="ph-p">Deploying autonomous cleanup vessels to remove ocean plastic across SE Asia.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>SE Asia · 2020</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div></div>
+<div class="ph-card" onclick="openProgPopup(3)"><div class="ph-img"><img src="https://picsum.photos/seed/mangrove-coast-tropical-green-aerial/800/500" alt="Mangrove"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-active">Active</span><div class="ph-img-title">Mangrove Shield Project</div></div><div class="ph-body"><p class="ph-p">Replanting 200km of mangrove coastline across West Africa as natural storm barriers.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>W. Africa · 2019</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div></div>
+<div class="ph-card" onclick="openProgPopup(4)"><div class="ph-img"><img src="https://picsum.photos/seed/whale-ocean-surface-blue-sunset/800/500" alt="Cetacean"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-new">New</span><div class="ph-img-title">Cetacean Sanctuary Network</div></div><div class="ph-body"><p class="ph-p">Creating safe migration corridors for whales and dolphins, reducing ship-strikes.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>S. Pacific · 2024</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div></div>
+<div class="ph-card" onclick="openProgPopup(5)"><div class="ph-img"><img src="https://picsum.photos/seed/seagrass-underwater-light-green/800/500" alt="Seagrass"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-active">Active</span><div class="ph-img-title">Seagrass Meadow Recovery</div></div><div class="ph-body"><p class="ph-p">Seagrass sequesters carbon 35x faster than rainforests. Replanting 1,200 hectares.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>Mediterranean · 2022</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div></div>
+<div class="ph-card" onclick="openProgPopup(0)"><div class="ph-img"><img src="https://picsum.photos/seed/coral-garden-tropical-bright/800/500" alt="Coral"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-active">Active</span><div class="ph-img-title">Coral Guardians Program</div></div><div class="ph-body"><p class="ph-p">Restoring 500 hectares of degraded coral reefs across the Indo-Pacific.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>Indo-Pacific · 2021</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div></div>
+<div class="ph-card" onclick="openProgPopup(1)"><div class="ph-img"><img src="https://picsum.photos/seed/deep-sea-submarine-dark-blue/800/500" alt="Abyssal"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-explore">Exploring</span><div class="ph-img-title">Abyssal Frontier Expedition</div></div><div class="ph-body"><p class="ph-p">Mapping unexplored deep-sea trenches and hydrothermal vents.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>Global · 2023</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div></div>
+<div class="ph-card" onclick="openProgPopup(2)"><div class="ph-img"><img src="https://picsum.photos/seed/ocean-plastic-waste-cleanup-boat/800/500" alt="Blue Clean"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-scale">Scaling</span><div class="ph-img-title">Blue Clean Initiative</div></div><div class="ph-body"><p class="ph-p">Deploying autonomous cleanup vessels across SE Asia.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>SE Asia · 2020</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div></div>
+<div class="ph-card" onclick="openProgPopup(3)"><div class="ph-img"><img src="https://picsum.photos/seed/mangrove-coast-tropical-green-aerial/800/500" alt="Mangrove"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-active">Active</span><div class="ph-img-title">Mangrove Shield Project</div></div><div class="ph-body"><p class="ph-p">Replanting 200km of mangrove coastline across West Africa.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>W. Africa · 2019</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div></div>
+<div class="ph-card" onclick="openProgPopup(4)"><div class="ph-img"><img src="https://picsum.photos/seed/whale-ocean-surface-blue-sunset/800/500" alt="Cetacean"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-new">New</span><div class="ph-img-title">Cetacean Sanctuary Network</div></div><div class="ph-body"><p class="ph-p">Creating safe migration corridors for whales and dolphins.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>S. Pacific · 2024</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div></div>
+<div class="ph-card" onclick="openProgPopup(5)"><div class="ph-img"><img src="https://picsum.photos/seed/seagrass-underwater-light-green/800/500" alt="Seagrass"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-active">Active</span><div class="ph-img-title">Seagrass Meadow Recovery</div></div><div class="ph-body"><p class="ph-p">Seagrass sequesters carbon 35x faster than rainforests.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>Mediterranean · 2022</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div></div>
+</div></div></div></section>
 
-<!-- ═══════════════════════════════════════════════
-     IMPACT STATISTICS
-═══════════════════════════════════════════════ -->
-<section id="impact-stats">
-  <div class="container">
-    <div class="sec-head rv">
-      <div class="sec-eyebrow">Impact Statistics</div>
-      <h2 class="sec-title">Measuring Our<br><em>Ocean Impact</em></h2>
-      <p class="sec-sub">Every number tells a story of dedication, science, and the communities who stand guard over our seas.</p>
-    </div>
+<div class="prog-popup-overlay" id="progPopup"><div id="progPopupBg" style="position:absolute;inset:0;background:rgba(3,13,24,.8);backdrop-filter:blur(14px);cursor:pointer"></div><div class="prog-popup"><button class="prog-popup-close" id="progPopupClose"><iconify-icon icon="lucide:x" width="16"></iconify-icon></button><div class="prog-popup-img"><img id="ppImg" src="" alt=""><div class="prog-popup-img-grad"></div><span class="prog-popup-badge" id="ppBadge"></span><div class="prog-popup-img-title" id="ppTitle"></div></div><div class="prog-popup-body"><p class="prog-popup-p" id="ppDesc"></p><div class="prog-popup-stats" id="ppStats"></div></div></div></div>
 
-    <div class="istat-grid rv">
-      <div class="istat-cell">
-        <div class="istat-icon"><iconify-icon icon="lucide:map" width="22" style="color:var(--sky)"></iconify-icon></div>
-        <div class="istat-num"><span class="counter" data-target="5" data-suffix="">0</span><span class="istat-sfx">M+</span></div>
-        <div class="istat-lbl">Hectares Protected</div>
-        <div class="istat-div"></div>
-        <div class="istat-desc">Marine habitats actively monitored &amp; conserved</div>
-      </div>
-      <div class="istat-cell">
-        <div class="istat-icon"><iconify-icon icon="lucide:users" width="22" style="color:var(--sky)"></iconify-icon></div>
-        <div class="istat-num"><span class="counter" data-target="120" data-suffix="">0</span><span class="istat-sfx">K+</span></div>
-        <div class="istat-lbl">Lives Impacted</div>
-        <div class="istat-div"></div>
-        <div class="istat-desc">Coastal communities supported worldwide</div>
-      </div>
-      <div class="istat-cell">
-        <div class="istat-icon"><iconify-icon icon="lucide:book-open" width="22" style="color:var(--sky)"></iconify-icon></div>
-        <div class="istat-num"><span class="counter" data-target="340" data-suffix="">0</span><span class="istat-sfx">+</span></div>
-        <div class="istat-lbl">Research Papers</div>
-        <div class="istat-div"></div>
-        <div class="istat-desc">Peer-reviewed studies published globally</div>
-      </div>
-      <div class="istat-cell">
-        <div class="istat-icon"><iconify-icon icon="lucide:handshake" width="22" style="color:var(--sky)"></iconify-icon></div>
-        <div class="istat-num"><span class="counter" data-target="89" data-suffix="">0</span></div>
-        <div class="istat-lbl">Partner Organisations</div>
-        <div class="istat-div"></div>
-        <div class="istat-desc">Global network spanning 47 countries</div>
-      </div>
-      <div class="istat-cell">
-        <div class="istat-icon"><iconify-icon icon="lucide:leaf" width="22" style="color:var(--sky)"></iconify-icon></div>
-        <div class="istat-num"><span class="counter" data-target="200" data-suffix="">0</span><span class="istat-sfx">km</span></div>
-        <div class="istat-lbl">Mangroves Restored</div>
-        <div class="istat-div"></div>
-        <div class="istat-desc">Coastline replanted as natural storm barriers</div>
-      </div>
-      <div class="istat-cell">
-        <div class="istat-icon"><iconify-icon icon="lucide:fish" width="22" style="color:var(--sky)"></iconify-icon></div>
-        <div class="istat-num"><span class="counter" data-target="1200" data-suffix="">0</span><span class="istat-sfx">+</span></div>
-        <div class="istat-lbl">Species Catalogued</div>
-        <div class="istat-div"></div>
-        <div class="istat-desc">Marine species in our biodiversity atlas</div>
-      </div>
-      <div class="istat-cell">
-        <div class="istat-icon"><iconify-icon icon="lucide:recycle" width="22" style="color:var(--sky)"></iconify-icon></div>
-        <div class="istat-num"><span class="counter" data-target="4800" data-suffix="">0</span><span class="istat-sfx">T</span></div>
-        <div class="istat-lbl">Plastic Removed</div>
-        <div class="istat-div"></div>
-        <div class="istat-desc">Tonnes of ocean plastic collected &amp; recycled</div>
-      </div>
-      <div class="istat-cell">
-        <div class="istat-icon"><iconify-icon icon="lucide:calendar" width="22" style="color:var(--sky)"></iconify-icon></div>
-        <div class="istat-num"><span class="counter" data-target="17" data-suffix="">0</span><span class="istat-sfx">yr</span></div>
-        <div class="istat-lbl">Years of Impact</div>
-        <div class="istat-div"></div>
-        <div class="istat-desc">Dedicated ocean stewardship since 2008</div>
-      </div>
-    </div>
-  </div>
-  <div class="istat-bottom-wave">
-    <svg viewBox="0 0 1440 60" preserveAspectRatio="none" style="width:100%;height:50px;display:block">
-      <path d="M0,30 C360,60 720,0 1080,30 C1260,45 1380,12 1440,28 L1440,60 L0,60 Z" fill="#030D18"/>
-    </svg>
-  </div>
-</section>
+<section id="partner-globe"><div class="container"><div class="sec-head rv"><div class="sec-eyebrow">Global Partners</div><h2 class="sec-title"><em>Our Network</em> of<br><em>Change-Makers</em></h2><p class="sec-sub">Drag to rotate · Click any partner</p></div></div>
+<div class="globe-scene rv" id="globeScene"><canvas id="globe-canvas"></canvas><div class="globe-dots-layer" id="globeDots"></div></div>
+<div class="globe-hint rv" data-delay="2"><iconify-icon icon="lucide:move" width="14"></iconify-icon>Drag to explore the globe</div></section>
 
+<div class="pp-overlay" id="ppOverlay"><div class="pp-bg" id="ppBg"></div><div class="pp-box"><button class="pp-close" id="ppClose"><iconify-icon icon="lucide:x" width="14"></iconify-icon></button><div class="pp-logo" id="ppLogo"></div><div class="pp-name" id="ppName"></div><div class="pp-type" id="ppType"></div><div class="pp-desc" id="ppDesc2"></div><div class="pp-tags" id="ppTags"></div></div></div>
 
-<!-- ═══════════════════════════════════════════════
-     PROGRAM HIGHLIGHTS
-═══════════════════════════════════════════════ -->
-<section id="prog-highlights">
-  <div class="container">
-    <div class="sec-head rv" style="text-align:center">
-      <div class="sec-eyebrow" style="color:rgba(56,189,248,.7)">Program Highlights</div>
-      <h2 class="sec-title on-dark"><em>Active</em> <em>Initiatives</em></h2>
-      <p class="sec-sub" style="color:rgba(255,255,255,.35)">Drag to scroll · Click arrows · Pause on hover</p>
-    </div>
-  </div>
+<footer id="site-footer"><div class="container"><div class="footer-main"><div class="footer-grid">
+<div class="footer-brand"><a href="<?= BASE_URL ?>" class="footer-brand-logo"><div class="footer-brand-icon"><?php if (!empty($site['site_logo'])): ?><img src="<?= $logo_url ?>" alt="<?= $site_title ?>"><?php else: ?><iconify-icon icon="lucide:waves" width="20" style="color:#fff"></iconify-icon><?php endif; ?></div><div><span class="footer-brand-name"><?= $site_title ?></span><span class="footer-brand-tag">Ocean Conservation</span></div></a><p class="footer-brand-desc">Global Oceanic Adventures &amp; Environmental Conservation Foundation — Protecting marine ecosystems through science, community engagement, and policy advocacy since 2008.</p><div class="footer-socials"><a href="#" class="footer-social"><iconify-icon icon="lucide:twitter" width="15"></iconify-icon></a><a href="#" class="footer-social"><iconify-icon icon="lucide:instagram" width="15"></iconify-icon></a><a href="#" class="footer-social"><iconify-icon icon="lucide:linkedin" width="15"></iconify-icon></a><a href="#" class="footer-social"><iconify-icon icon="lucide:youtube" width="15"></iconify-icon></a><a href="#" class="footer-social"><iconify-icon icon="lucide:facebook" width="15"></iconify-icon></a></div></div>
+<div><div class="footer-col-title">Quick Links</div><ul class="footer-links"><?php foreach (array_slice($menu_tree, 0, 6) as $m): ?><li><a href="<?= htmlspecialchars(menu_url($m['link'])) ?>"><span class="fl-dot"></span><?= htmlspecialchars($m['title']) ?></a></li><?php endforeach; ?></ul></div>
+<div><div class="footer-col-title">Programs</div><ul class="footer-links"><li><a href="#prog-highlights"><span class="fl-dot"></span>Coral Guardians</a></li><li><a href="#prog-highlights"><span class="fl-dot"></span>Mangrove Shield</a></li><li><a href="#prog-highlights"><span class="fl-dot"></span>Blue Clean Initiative</a></li><li><a href="#prog-highlights"><span class="fl-dot"></span>Cetacean Sanctuary</a></li><li><a href="#prog-highlights"><span class="fl-dot"></span>Seagrass Recovery</a></li><li><a href="#prog-highlights"><span class="fl-dot"></span>Abyssal Expedition</a></li></ul></div>
+<div><div class="footer-col-title">Get Involved</div><ul class="footer-links"><li><a href="#"><span class="fl-dot"></span>Donate</a></li><li><a href="#"><span class="fl-dot"></span>Volunteer</a></li><li><a href="#"><span class="fl-dot"></span>Partner With Us</a></li><li><a href="#"><span class="fl-dot"></span>Careers</a></li><li><a href="#"><span class="fl-dot"></span>Press &amp; Media</a></li><li><a href="#"><span class="fl-dot"></span>Contact Us</a></li></ul></div>
+<div class="footer-newsletter"><div><span class="footer-nl-eyebrow">Stay Connected</span><div class="footer-nl-title">Join Our <em>Ocean Community</em></div></div><form class="footer-nl-form" onsubmit="event.preventDefault();showToast('Welcome aboard!')"><input type="email" class="footer-nl-input" placeholder="Enter your email" required><button type="submit" class="footer-nl-btn"><iconify-icon icon="lucide:send" width="14"></iconify-icon>Subscribe</button></form></div>
+</div></div></div>
+<div class="footer-bottom"><div class="container"><div class="footer-bottom-inner"><div class="footer-copy">&copy; <?= date('Y') ?> <a href="<?= BASE_URL ?>"><?= $site_title ?> Foundation</a>. All rights reserved.</div><div class="footer-bottom-badges"><span class="footer-badge"><iconify-icon icon="lucide:shield-check" width="11"></iconify-icon>Verified</span><span class="footer-badge"><iconify-icon icon="lucide:leaf" width="11"></iconify-icon>Carbon Neutral</span><span class="footer-badge"><iconify-icon icon="lucide:globe" width="11"></iconify-icon>47 Countries</span></div></div></div></div></footer>
 
-  <div class="ph-slider-outer rv">
-    <button class="ph-btn" id="phBtnPrev" aria-label="Previous">
-      <iconify-icon icon="lucide:chevron-left" width="24"></iconify-icon>
-    </button>
-    <button class="ph-btn" id="phBtnNext" aria-label="Next">
-      <iconify-icon icon="lucide:chevron-right" width="24"></iconify-icon>
-    </button>
-
-    <div class="ph-track-wrap rv" id="phTrackWrap">
-      <div class="ph-track" id="ph-track">
-        <div class="ph-card" onclick="openProgPopup(0)">
-          <div class="ph-img"><img src="https://picsum.photos/seed/coral-garden-tropical-bright/800/500" alt="Coral Guardians"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-active">Active</span><div class="ph-img-title">Coral Guardians Program</div></div>
-          <div class="ph-body"><p class="ph-p">Restoring 500 hectares of degraded coral reefs across the Indo-Pacific using advanced micro-fragmentation techniques.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>Indo-Pacific · 2021</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div>
-        </div>
-        <div class="ph-card" onclick="openProgPopup(1)">
-          <div class="ph-img"><img src="https://picsum.photos/seed/deep-sea-submarine-dark-blue/800/500" alt="Abyssal Expedition"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-explore">Exploring</span><div class="ph-img-title">Abyssal Frontier Expedition</div></div>
-          <div class="ph-body"><p class="ph-p">Mapping unexplored deep-sea trenches and hydrothermal vents, discovering new species in Earth's final frontier.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>Global · 2023</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div>
-        </div>
-        <div class="ph-card" onclick="openProgPopup(2)">
-          <div class="ph-img"><img src="https://picsum.photos/seed/ocean-plastic-waste-cleanup-boat/800/500" alt="Blue Clean"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-scale">Scaling</span><div class="ph-img-title">Blue Clean Initiative</div></div>
-          <div class="ph-body"><p class="ph-p">Deploying autonomous cleanup vessels and community collection systems to remove ocean plastic across SE Asia.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>SE Asia · 2020</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div>
-        </div>
-        <div class="ph-card" onclick="openProgPopup(3)">
-          <div class="ph-img"><img src="https://picsum.photos/seed/mangrove-coast-tropical-green-aerial/800/500" alt="Mangrove Shield"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-active">Active</span><div class="ph-img-title">Mangrove Shield Project</div></div>
-          <div class="ph-body"><p class="ph-p">Replanting 200km of mangrove coastline across West Africa as natural storm barriers and carbon sinks.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>W. Africa · 2019</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div>
-        </div>
-        <div class="ph-card" onclick="openProgPopup(4)">
-          <div class="ph-img"><img src="https://picsum.photos/seed/whale-ocean-surface-blue-sunset/800/500" alt="Cetacean Sanctuary"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-new">New</span><div class="ph-img-title">Cetacean Sanctuary Network</div></div>
-          <div class="ph-body"><p class="ph-p">Creating safe migration corridors for whales and dolphins, reducing ship-strikes and ocean noise pollution.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>S. Pacific · 2024</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div>
-        </div>
-        <div class="ph-card" onclick="openProgPopup(5)">
-          <div class="ph-img"><img src="https://picsum.photos/seed/seagrass-underwater-light-green/800/500" alt="Seagrass Meadows"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-active">Active</span><div class="ph-img-title">Seagrass Meadow Recovery</div></div>
-          <div class="ph-body"><p class="ph-p">Seagrass meadows sequester carbon 35× faster than rainforests. Replanting 1,200 hectares across the Mediterranean.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>Mediterranean · 2022</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div>
-        </div>
-        <!-- Duplicates for infinite loop -->
-        <div class="ph-card" onclick="openProgPopup(0)">
-          <div class="ph-img"><img src="https://picsum.photos/seed/coral-garden-tropical-bright/800/500" alt="Coral Guardians"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-active">Active</span><div class="ph-img-title">Coral Guardians Program</div></div>
-          <div class="ph-body"><p class="ph-p">Restoring 500 hectares of degraded coral reefs across the Indo-Pacific using advanced micro-fragmentation techniques.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>Indo-Pacific · 2021</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div>
-        </div>
-        <div class="ph-card" onclick="openProgPopup(1)">
-          <div class="ph-img"><img src="https://picsum.photos/seed/deep-sea-submarine-dark-blue/800/500" alt="Abyssal Expedition"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-explore">Exploring</span><div class="ph-img-title">Abyssal Frontier Expedition</div></div>
-          <div class="ph-body"><p class="ph-p">Mapping unexplored deep-sea trenches and hydrothermal vents, discovering new species in Earth's final frontier.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>Global · 2023</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div>
-        </div>
-        <div class="ph-card" onclick="openProgPopup(2)">
-          <div class="ph-img"><img src="https://picsum.photos/seed/ocean-plastic-waste-cleanup-boat/800/500" alt="Blue Clean"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-scale">Scaling</span><div class="ph-img-title">Blue Clean Initiative</div></div>
-          <div class="ph-body"><p class="ph-p">Deploying autonomous cleanup vessels and community collection systems to remove ocean plastic across SE Asia.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>SE Asia · 2020</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div>
-        </div>
-        <div class="ph-card" onclick="openProgPopup(3)">
-          <div class="ph-img"><img src="https://picsum.photos/seed/mangrove-coast-tropical-green-aerial/800/500" alt="Mangrove Shield"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-active">Active</span><div class="ph-img-title">Mangrove Shield Project</div></div>
-          <div class="ph-body"><p class="ph-p">Replanting 200km of mangrove coastline across West Africa as natural storm barriers and carbon sinks.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>W. Africa · 2019</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div>
-        </div>
-        <div class="ph-card" onclick="openProgPopup(4)">
-          <div class="ph-img"><img src="https://picsum.photos/seed/whale-ocean-surface-blue-sunset/800/500" alt="Cetacean Sanctuary"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-new">New</span><div class="ph-img-title">Cetacean Sanctuary Network</div></div>
-          <div class="ph-body"><p class="ph-p">Creating safe migration corridors for whales and dolphins, reducing ship-strikes and ocean noise pollution.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>S. Pacific · 2024</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div>
-        </div>
-        <div class="ph-card" onclick="openProgPopup(5)">
-          <div class="ph-img"><img src="https://picsum.photos/seed/seagrass-underwater-light-green/800/500" alt="Seagrass Meadows"><div class="ph-img-grad"></div><span class="ph-badge ph-badge-active">Active</span><div class="ph-img-title">Seagrass Meadow Recovery</div></div>
-          <div class="ph-body"><p class="ph-p">Seagrass meadows sequester carbon 35× faster than rainforests. Replanting 1,200 hectares across the Mediterranean.</p><div class="ph-footer"><span class="ph-loc"><iconify-icon icon="lucide:map-pin" width="11"></iconify-icon>Mediterranean · 2022</span><div class="ph-arr"><iconify-icon icon="lucide:arrow-up-right" width="14"></iconify-icon></div></div></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div style="background:var(--deep);margin-top:0">
-    <svg viewBox="0 0 1440 50" preserveAspectRatio="none" style="width:100%;height:40px;display:block">
-      <path d="M0,18 C360,50 720,0 1080,25 C1260,38 1380,10 1440,20 L1440,0 L0,0 Z" fill="#030D18"/>
-    </svg>
-  </div>
-</section>
-
-<!-- Program Popup -->
-<div class="prog-popup-overlay" id="progPopup">
-  <div id="progPopupBg" style="position:absolute;inset:0;background:rgba(3,13,24,.8);backdrop-filter:blur(14px);cursor:pointer"></div>
-  <div class="prog-popup" id="progPopupBox">
-    <button class="prog-popup-close" id="progPopupClose"><iconify-icon icon="lucide:x" width="16"></iconify-icon></button>
-    <div class="prog-popup-img"><img id="ppImg" src="" alt=""><div class="prog-popup-img-grad"></div><span class="prog-popup-badge" id="ppBadge"></span><div class="prog-popup-img-title" id="ppTitle"></div></div>
-    <div class="prog-popup-body">
-      <p class="prog-popup-p" id="ppDesc"></p>
-      <div class="prog-popup-stats" id="ppStats"></div>
-    </div>
-  </div>
-</div>
-
-
-<!-- ═══════════════════════════════════════════════
-     PARTNER GLOBE
-═══════════════════════════════════════════════ -->
-<section id="partner-globe">
-  <div class="container">
-    <div class="sec-head rv">
-      <div class="sec-eyebrow">Global Partners</div>
-      <h2 class="sec-title"><em>Our Network</em> of<br><em>Change-Makers</em></h2>
-      <p class="sec-sub">Drag to rotate · Click any partner to learn more</p>
-    </div>
-  </div>
-
-  <div class="globe-scene rv" id="globeScene">
-    <canvas id="globe-canvas"></canvas>
-    <div class="globe-dots-layer" id="globeDots"></div>
-  </div>
-  <div class="globe-hint rv" data-delay="2">
-    <iconify-icon icon="lucide:move" width="14"></iconify-icon>
-    Drag to explore the globe
-  </div>
-</section>
-
-<!-- Partner Popup -->
-<div class="pp-overlay" id="ppOverlay">
-  <div class="pp-bg" id="ppBg"></div>
-  <div class="pp-box">
-    <button class="pp-close" id="ppClose"><iconify-icon icon="lucide:x" width="14"></iconify-icon></button>
-    <div class="pp-logo" id="ppLogo"></div>
-    <div class="pp-name" id="ppName"></div>
-    <div class="pp-type" id="ppType"></div>
-    <div class="pp-desc" id="ppDesc"></div>
-    <div class="pp-tags" id="ppTags"></div>
-  </div>
-</div>
-
-
-<!-- ═══ FOOTER ═══ -->
-<footer id="site-footer">
-  <div class="footer-wave">
-    <svg viewBox="0 0 1440 70" preserveAspectRatio="none" style="width:100%;height:60px;display:block">
-      <path d="M0,35 C360,70 720,0 1080,35 C1260,52 1380,14 1440,30 L1440,70 L0,70 Z" fill="#060F1E"/>
-    </svg>
-  </div>
-
-  <div class="container">
-    <div class="footer-main">
-      <div class="footer-grid">
-        <div class="footer-brand">
-          <a href="#hero" class="footer-brand-logo">
-            <div class="footer-brand-icon">
-              <iconify-icon icon="lucide:waves" width="20" style="color:#fff"></iconify-icon>
-            </div>
-            <div>
-              <span class="footer-brand-name">GOAEC</span>
-              <span class="footer-brand-tag">Ocean Conservation</span>
-            </div>
-          </a>
-          <p class="footer-brand-desc">Global Oceanic Adventures &amp; Environmental Conservation Foundation — Protecting marine ecosystems through science, community engagement, and policy advocacy since 2008.</p>
-          <div class="footer-socials">
-            <a href="#" class="footer-social" aria-label="Twitter"><iconify-icon icon="lucide:twitter" width="16"></iconify-icon></a>
-            <a href="#" class="footer-social" aria-label="Instagram"><iconify-icon icon="lucide:instagram" width="16"></iconify-icon></a>
-            <a href="#" class="footer-social" aria-label="LinkedIn"><iconify-icon icon="lucide:linkedin" width="16"></iconify-icon></a>
-            <a href="#" class="footer-social" aria-label="YouTube"><iconify-icon icon="lucide:youtube" width="16"></iconify-icon></a>
-            <a href="#" class="footer-social" aria-label="Facebook"><iconify-icon icon="lucide:facebook" width="16"></iconify-icon></a>
-          </div>
-        </div>
-        <div>
-          <div class="footer-col-title">Quick Links</div>
-          <ul class="footer-links">
-            <li><a href="#hero"><span class="fl-dot"></span>Home</a></li>
-            <li><a href="#impact-stats"><span class="fl-dot"></span>Impact Statistics</a></li>
-            <li><a href="#prog-highlights"><span class="fl-dot"></span>Program Highlights</a></li>
-            <li><a href="#partner-globe"><span class="fl-dot"></span>Global Partners</a></li>
-            <li><a href="#"><span class="fl-dot"></span>Research &amp; Publications</a></li>
-            <li><a href="#"><span class="fl-dot"></span>News &amp; Updates</a></li>
-          </ul>
-        </div>
-        <div>
-          <div class="footer-col-title">Programs</div>
-          <ul class="footer-links">
-            <li><a href="#prog-highlights"><span class="fl-dot"></span>Coral Guardians</a></li>
-            <li><a href="#prog-highlights"><span class="fl-dot"></span>Mangrove Shield</a></li>
-            <li><a href="#prog-highlights"><span class="fl-dot"></span>Blue Clean Initiative</a></li>
-            <li><a href="#prog-highlights"><span class="fl-dot"></span>Cetacean Sanctuary</a></li>
-            <li><a href="#prog-highlights"><span class="fl-dot"></span>Seagrass Recovery</a></li>
-            <li><a href="#prog-highlights"><span class="fl-dot"></span>Abyssal Expedition</a></li>
-          </ul>
-        </div>
-        <div>
-          <div class="footer-col-title">Get Involved</div>
-          <ul class="footer-links">
-            <li><a href="#"><span class="fl-dot"></span>Donate</a></li>
-            <li><a href="#"><span class="fl-dot"></span>Volunteer</a></li>
-            <li><a href="#"><span class="fl-dot"></span>Partner With Us</a></li>
-            <li><a href="#"><span class="fl-dot"></span>Careers</a></li>
-            <li><a href="#"><span class="fl-dot"></span>Press &amp; Media</a></li>
-            <li><a href="#"><span class="fl-dot"></span>Contact Us</a></li>
-          </ul>
-        </div>
-        <div class="footer-newsletter">
-          <div class="footer-nl-text">
-            <span class="footer-nl-eyebrow">Stay Connected</span>
-            <div class="footer-nl-title">Join Our <em>Ocean Community</em></div>
-          </div>
-          <form class="footer-nl-form" onsubmit="event.preventDefault();showToast('Welcome aboard! Check your inbox for confirmation.');">
-            <input type="email" class="footer-nl-input" placeholder="Enter your email" required>
-            <button type="submit" class="footer-nl-btn">
-              <iconify-icon icon="lucide:send" width="14"></iconify-icon>Subscribe
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="footer-bottom">
-    <div class="container">
-      <div class="footer-bottom-inner">
-        <div class="footer-copy">© 2025 <a href="#hero">GOAEC Foundation</a>. All rights reserved. · Registered Non-Profit · 501(c)(3)</div>
-        <div class="footer-bottom-badges">
-          <span class="footer-badge"><iconify-icon icon="lucide:shield-check" width="12"></iconify-icon>Verified Non-Profit</span>
-          <span class="footer-badge"><iconify-icon icon="lucide:leaf" width="12"></iconify-icon>Carbon Neutral</span>
-          <span class="footer-badge"><iconify-icon icon="lucide:globe" width="12"></iconify-icon>47 Countries</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</footer>
-
-<!-- TOAST -->
-<div id="toast">
-  <div class="toast-inner">
-    <iconify-icon icon="lucide:check-circle" width="18" style="color:var(--sky)"></iconify-icon>
-    <span class="toast-txt" id="toast-msg"></span>
-  </div>
-</div>
-
+<div id="toast"><div class="toast-inner"><iconify-icon icon="lucide:check-circle" width="18" style="color:var(--sky)"></iconify-icon><span class="toast-txt" id="toast-msg"></span></div></div>
 
 <script>
 /* ═══ WAVE MORPH ═══ */
-(function(){
-  const wt1=document.getElementById('wt1'),wt2=document.getElementById('wt2'),wt3=document.getElementById('wt3'),wb1=document.getElementById('wb1');
-  if(!wt1)return;
-  const tF=["M0,40 C200,85 400,-5 600,35 C800,75 1000,-5 1200,35 C1320,60 1400,20 1440,35 L1440,0 L0,0 Z","M0,28 C220,78 420,2 600,28 C780,58 980,0 1200,28 C1340,48 1390,14 1440,28 L1440,0 L0,0 Z","M0,48 C180,88 380,-2 580,42 C780,82 980,-2 1200,42 C1330,70 1400,26 1440,42 L1440,0 L0,0 Z"];
-  const t2F=["M0,52 C180,10 360,82 540,50 C720,18 900,80 1080,50 C1260,18 1360,64 1440,52 L1440,0 L0,0 Z","M0,42 C200,5 380,76 560,42 C740,8 920,76 1080,42 C1260,8 1370,54 1440,42 L1440,0 L0,0 Z","M0,60 C180,16 360,88 540,58 C720,26 900,86 1080,58 C1260,26 1360,72 1440,60 L1440,0 L0,0 Z"];
-  const bF=["M0,50 C200,5 400,90 600,55 C800,20 1000,90 1200,55 C1320,30 1400,70 1440,55 L1440,90 L0,90 Z","M0,38 C220,2 420,82 620,44 C820,6 1020,82 1220,44 C1340,22 1420,58 1440,44 L1440,90 L0,90 Z","M0,62 C200,12 400,96 600,64 C800,30 1000,96 1200,64 C1320,40 1400,78 1440,64 L1440,90 L0,90 Z"];
-  function n(d){return d.match(/-?[\d.]+/g).map(Number)}function l(a,b,t){return a+(b-a)*t}function e(t){return t<.5?2*t*t:-1+(4-2*t)*t}function b(t,v){let i=0;return t.replace(/-?[\d.]+/g,()=>Math.round(v[i++]*100)/100)}
-  let fi=0,raf,t0=null;const D=3200;
-  function tick(ts){if(!t0)t0=ts;const el=(ts-t0)%D,p=e(el/D),ni=(fi+1)%tF.length;const iv=(a,c)=>a.map((v,i)=>l(v,c[i],p));try{wt1.setAttribute('d',b(tF[fi],iv(n(tF[fi]),n(tF[ni]))));wt2.setAttribute('d',b(t2F[fi],iv(n(t2F[fi]),n(t2F[ni]))));wt3.setAttribute('d',b(tF[fi],iv(n(tF[fi]),n(tF[ni]))).replace(' L1440,0 L0,0 Z',''));wb1.setAttribute('d',b(bF[fi],iv(n(bF[fi]),n(bF[ni]))));}catch(x){}if(el/D>.97)fi=(fi+1)%tF.length;raf=requestAnimationFrame(tick);}
-  raf=requestAnimationFrame(tick);window._stopWaves=()=>cancelAnimationFrame(raf);
-})();
+(function(){var wt1=document.getElementById('wt1'),wt2=document.getElementById('wt2'),wt3=document.getElementById('wt3'),wb1=document.getElementById('wb1');if(!wt1)return;var tF=["M0,40 C200,85 400,-5 600,35 C800,75 1000,-5 1200,35 C1320,60 1400,20 1440,35 L1440,0 L0,0 Z","M0,28 C220,78 420,2 600,28 C780,58 980,0 1200,28 C1340,48 1390,14 1440,28 L1440,0 L0,0 Z","M0,48 C180,88 380,-2 580,42 C780,82 980,-2 1200,42 C1330,70 1400,26 1440,42 L1440,0 L0,0 Z"];var t2F=["M0,52 C180,10 360,82 540,50 C720,18 900,80 1080,50 C1260,18 1360,64 1440,52 L1440,0 L0,0 Z","M0,42 C200,5 380,76 560,42 C740,8 920,76 1080,42 C1260,8 1370,54 1440,42 L1440,0 L0,0 Z","M0,60 C180,16 360,88 540,58 C720,26 900,86 1080,58 C1260,26 1360,72 1440,60 L1440,0 L0,0 Z"];var bF=["M0,50 C200,5 400,90 600,55 C800,20 1000,90 1200,55 C1320,30 1400,70 1440,55 L1440,90 L0,90 Z","M0,38 C220,2 420,82 620,44 C820,6 1020,82 1220,44 C1340,22 1420,58 1440,44 L1440,90 L0,90 Z","M0,62 C200,12 400,96 600,64 C800,30 1000,96 1200,64 C1320,40 1400,78 1440,64 L1440,90 L0,90 Z"];function n(d){return d.match(/-?[\d.]+/g).map(Number)}function l(a,b,t){return a+(b-a)*t}function e(t){return t<.5?2*t*t:-1+(4-2*t)*t}function b(t,v){var i=0;return t.replace(/-?[\d.]+/g,function(){return Math.round(v[i++]*100)/100})}var fi=0,raf,t0=null,D=3200;function tick(ts){if(!t0)t0=ts;var el=(ts-t0)%D,p=e(el/D),ni=(fi+1)%tF.length;var iv=function(a,c){return a.map(function(v,i){return l(v,c[i],p)})};try{wt1.setAttribute('d',b(tF[fi],iv(n(tF[fi]),n(tF[ni]))));wt2.setAttribute('d',b(t2F[fi],iv(n(t2F[fi]),n(t2F[ni]))));wt3.setAttribute('d',b(tF[fi],iv(n(tF[fi]),n(tF[ni]))).replace(' L1440,0 L0,0 Z',''));wb1.setAttribute('d',b(bF[fi],iv(n(bF[fi]),n(bF[ni]))))}catch(x){}if(el/D>.97)fi=(fi+1)%tF.length;raf=requestAnimationFrame(tick)}raf=requestAnimationFrame(tick);window._stopWaves=function(){cancelAnimationFrame(raf)}})();
 
 /* ═══ SPRAY ═══ */
-const sc=document.getElementById('spray-canvas'),sctx=sc.getContext('2d');sc.width=innerWidth;sc.height=innerHeight;const sprays=[];let sprayGo=false;
-function addSpray(cx,y,n,spd){for(let i=0;i<n;i++){const a=(Math.random()-.5)*Math.PI*1.6,s=spd*(.3+Math.random()*.7);sprays.push({x:cx,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-s*.35,r:Math.random()*2.5+.5,life:1,d:.012+Math.random()*.02});}}
-function fireSpray(){sprayGo=true;const cx=sc.width*.5;for(let y=0;y<sc.height;y+=sc.height/14)setTimeout(()=>addSpray(cx,y,6,5),y*.7);setTimeout(()=>{addSpray(cx,sc.height*.5,80,14);addSpray(cx,sc.height*.3,40,10);addSpray(cx,sc.height*.7,40,10);},180);}
-function drawSpray(){sctx.clearRect(0,0,sc.width,sc.height);if(!sprayGo)return;let alive=false;sprays.forEach(p=>{if(p.life<=0)return;alive=true;p.vy+=.16;p.vx*=.975;p.x+=p.vx;p.y+=p.vy;p.life-=p.d;const a=Math.max(0,p.life*.85),g=sctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*4);g.addColorStop(0,`rgba(186,230,253,${a})`);g.addColorStop(.5,`rgba(56,189,248,${a*.3})`);g.addColorStop(1,'transparent');sctx.fillStyle=g;sctx.beginPath();sctx.arc(p.x,p.y,p.r*4,0,Math.PI*2);sctx.fill();sctx.fillStyle=`rgba(220,245,255,${a})`;sctx.beginPath();sctx.arc(p.x,p.y,p.r,0,Math.PI*2);sctx.fill();});if(!alive)sprayGo=false;}
-window.addEventListener('resize',()=>{sc.width=innerWidth;sc.height=innerHeight;});
+var sc=document.getElementById('spray-canvas'),sctx=sc.getContext('2d');sc.width=innerWidth;sc.height=innerHeight;var sprays=[],sprayGo=false;
+function addSpray(cx,y,n,spd){for(var i=0;i<n;i++){var a=(Math.random()-.5)*Math.PI*1.6,s=spd*(.3+Math.random()*.7);sprays.push({x:cx,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-s*.35,r:Math.random()*2.5+.5,life:1,d:.012+Math.random()*.02})}}
+function fireSpray(){sprayGo=true;var cx=sc.width*.5;for(var y=0;y<sc.height;y+=sc.height/14)setTimeout(function(yy){return function(){addSpray(cx,yy,6,5)}}(y),y*.7);setTimeout(function(){addSpray(cx,sc.height*.5,80,14);addSpray(cx,sc.height*.3,40,10);addSpray(cx,sc.height*.7,40,10)},180)}
+function drawSpray(){sctx.clearRect(0,0,sc.width,sc.height);if(!sprayGo)return;var alive=false;sprays.forEach(function(p){if(p.life<=0)return;alive=true;p.vy+=.16;p.vx*=.975;p.x+=p.vx;p.y+=p.vy;p.life-=p.d;var a=Math.max(0,p.life*.85),g=sctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*4);g.addColorStop(0,'rgba(186,230,253,'+a+')');g.addColorStop(.5,'rgba(56,189,248,'+(a*.3)+')');g.addColorStop(1,'transparent');sctx.fillStyle=g;sctx.beginPath();sctx.arc(p.x,p.y,p.r*4,0,Math.PI*2);sctx.fill();sctx.fillStyle='rgba(220,245,255,'+a+')';sctx.beginPath();sctx.arc(p.x,p.y,p.r,0,Math.PI*2);sctx.fill()});if(!alive)sprayGo=false}
+window.addEventListener('resize',function(){sc.width=innerWidth;sc.height=innerHeight});
 
 /* ═══ REVEAL SEQUENCE ═══ */
 (function(){
-  const ov=document.getElementById('wave-overlay'),ct=document.getElementById('overlay-center'),se=document.getElementById('seam-glow'),su=document.getElementById('scroll-cue'),rc=document.getElementById('ripple-cont');
-  function ar(){for(let i=0;i<5;i++){const r=document.createElement('div');r.className='ripple-ring';r.style.animationDelay=i*.3+'s';rc.appendChild(r);}}
-  setTimeout(()=>ct.classList.add('in'),400);setTimeout(()=>{se.style.opacity='1';ar();},1400);
-  setTimeout(()=>{ov.classList.add('split');fireSpray();if(window._stopWaves)window._stopWaves();},3600);
-  setTimeout(()=>su.classList.add('show'),5200);setTimeout(()=>ov.classList.add('done'),5800);setTimeout(()=>ov.style.display='none',6500);
-  (function sl(){requestAnimationFrame(sl);drawSpray();})();
+  var ov=document.getElementById('wave-overlay'),ct=document.getElementById('overlay-center'),se=document.getElementById('seam-glow'),su=document.getElementById('scroll-cue'),rc=document.getElementById('ripple-cont'),nav=document.getElementById('siteHeader'),heroVid=document.getElementById('hero-video'),overlayVid=document.getElementById('overlay-video');
+  function ar(){for(var i=0;i<5;i++){var r=document.createElement('div');r.className='ripple-ring';r.style.animationDelay=i*.3+'s';rc.appendChild(r)}}
+  setTimeout(function(){ct.classList.add('in')},400);
+  setTimeout(function(){se.style.opacity='1';ar()},1400);
+  setTimeout(function(){if(window._stopWaves)window._stopWaves()},2600);
+  setTimeout(function(){
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        ov.classList.add('split');
+        fireSpray();
+      });
+    });
+  },3600);
+  setTimeout(function(){su.classList.add('show')},6200);
+  setTimeout(function(){
+    if(overlayVid){overlayVid.pause();overlayVid.removeAttribute('src');overlayVid.load()}
+    ov.classList.add('done');
+    setTimeout(function(){
+      ov.style.display='none';
+      nav.classList.add('nav-visible');
+      if(heroVid){heroVid.muted=true;heroVid.currentTime=0;var p=heroVid.play();if(p&&typeof p.catch==='function'){p.catch(function(){})}}
+    },1200);
+  },6600);
+  (function sl(){requestAnimationFrame(sl);drawSpray()})();
 })();
 
 /* ═══ SCROLL REVEAL ═══ */
-const revObs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');revObs.unobserve(e.target);}});},{threshold:.06,rootMargin:'0px 0px -30px 0px'});
-document.querySelectorAll('.rv,.rv-s').forEach(el=>revObs.observe(el));
+var revObs=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');revObs.unobserve(e.target)}})},{threshold:.06,rootMargin:'0px 0px -30px 0px'});
+document.querySelectorAll('.rv,.rv-s').forEach(function(el){revObs.observe(el)});
 
 /* ═══ COUNTERS ═══ */
-const cObs=new IntersectionObserver(es=>{es.forEach(e=>{if(!e.isIntersecting)return;const el=e.target,T=+el.dataset.target,sf=el.dataset.suffix||'',DUR=2200,t0=performance.now();function step(now){const p=Math.min((now-t0)/DUR,1),eased=1-Math.pow(1-p,3);el.textContent=Math.round(T*eased).toLocaleString()+sf;if(p<1)requestAnimationFrame(step);}requestAnimationFrame(step);cObs.unobserve(el);});},{threshold:.5});
-document.querySelectorAll('.counter').forEach(c=>cObs.observe(c));
+var cObs=new IntersectionObserver(function(es){es.forEach(function(e){if(!e.isIntersecting)return;var el=e.target,T=+el.dataset.target,sf=el.dataset.suffix||'',DUR=2200,t0=performance.now();function step(now){var p=Math.min((now-t0)/DUR,1),eased=1-Math.pow(1-p,3);el.textContent=Math.round(T*eased).toLocaleString()+sf;if(p<1)requestAnimationFrame(step)}requestAnimationFrame(step);cObs.unobserve(el)})},{threshold:.5});
+document.querySelectorAll('.counter').forEach(function(c){cObs.observe(c)});
 
-/* ═══ NAVBAR SCROLL ═══ */
+/* ═══ NAVIGATION ═══ */
 (function(){
-  const nav=document.getElementById('navbar'),prog=document.getElementById('nav-progress');
-  window.addEventListener('scroll',()=>{
-    if(window.scrollY>80) nav.classList.add('scrolled');
-    else nav.classList.remove('scrolled');
-    const h=document.documentElement.scrollHeight-window.innerHeight;
-    prog.style.width=(window.scrollY/h*100)+'%';
-  });
-  const ham=document.getElementById('navHam'),mob=document.getElementById('nav-mobile');
-  ham.addEventListener('click',()=>{
-    ham.classList.toggle('open');
-    mob.classList.toggle('open');
-    document.body.style.overflow=mob.classList.contains('open')?'hidden':'';
-  });
-  mob.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{
-    ham.classList.remove('open');mob.classList.remove('open');
-    document.body.style.overflow='';
-  }));
+  var header=document.getElementById('siteHeader'),menuToggle=document.getElementById('menuToggle'),mainNav=document.getElementById('mainNav');
+  window.addEventListener('scroll',function(){if(window.scrollY>40)header.classList.add('scrolled');else header.classList.remove('scrolled')});
+  menuToggle.addEventListener('click',function(){menuToggle.classList.toggle('nav-is-open');mainNav.classList.toggle('mobile-open');document.body.style.overflow=mainNav.classList.contains('mobile-open')?'hidden':''});
+  mainNav.querySelectorAll('.nav-item.has-dropdown > .nav-link').forEach(function(link){link.addEventListener('click',function(e){if(window.innerWidth<=768||matchMedia('(hover:none)').matches){e.preventDefault();var item=link.parentElement;item.parentElement.querySelectorAll(':scope > .nav-item.mob-open').forEach(function(sib){if(sib!==item)sib.classList.remove('mob-open')});item.classList.toggle('mob-open')}})});
+  var moreTrigger=mainNav.querySelector('.more-trigger');
+  if(moreTrigger){moreTrigger.addEventListener('click',function(e){if(window.innerWidth<=768||matchMedia('(hover:none)').matches){e.preventDefault();var moreItem=moreTrigger.closest('.more-item');moreItem.parentElement.querySelectorAll(':scope > .nav-item.mob-open').forEach(function(sib){if(sib!==moreItem)sib.classList.remove('mob-open')});moreItem.classList.toggle('mob-open')}})}
+  mainNav.querySelectorAll('.dropdown-item, .more-panel a').forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768||matchMedia('(hover:none)').matches){menuToggle.classList.remove('nav-is-open');mainNav.classList.remove('mobile-open');document.body.style.overflow=''}})});
 })();
 
 /* ═══ SLIDER ═══ */
 (function(){
-  const trackWrap=document.getElementById('phTrackWrap'),track=document.getElementById('ph-track');
-  const prevBtn=document.getElementById('phBtnPrev'),nextBtn=document.getElementById('phBtnNext');
+  var trackWrap=document.getElementById('phTrackWrap'),
+      track=document.getElementById('ph-track'),
+      prevBtn=document.getElementById('phBtnPrev'),
+      nextBtn=document.getElementById('phBtnNext');
   if(!track||!trackWrap)return;
-  const CARD_W=460,GAP=32,SPEED=0.5;
-  let currentX=0,prevX=0,autoOn=true,isDragging=false,dragStart=0,rafId,hoverPaused=false;
-  function halfWidth(){return track.scrollWidth/2}
-  function clampLoop(x){const hw=halfWidth();if(x<=-hw)return x+hw;if(x>0)return x-hw;return x;}
-  function setX(x){track.style.transform=`translateX(${x}px)`;}
-  function loop(){if(autoOn&&!isDragging&&!hoverPaused){currentX-=SPEED;currentX=clampLoop(currentX);}setX(currentX);rafId=requestAnimationFrame(loop);}
-  trackWrap.addEventListener('mouseenter',()=>{hoverPaused=true});
-  trackWrap.addEventListener('mouseleave',()=>{hoverPaused=false});
-  function getX(e){return e.type.includes('mouse')?e.pageX:e.touches[0].clientX}
-  trackWrap.addEventListener('mousedown',e=>{isDragging=true;dragStart=getX(e);prevX=currentX;trackWrap.style.cursor='grabbing'});
-  window.addEventListener('mousemove',e=>{if(!isDragging)return;currentX=prevX+(getX(e)-dragStart)});
-  window.addEventListener('mouseup',()=>{if(!isDragging)return;isDragging=false;prevX=currentX=clampLoop(currentX);trackWrap.style.cursor='grab'});
-  trackWrap.addEventListener('touchstart',e=>{isDragging=true;dragStart=getX(e);prevX=currentX},{passive:true});
-  window.addEventListener('touchmove',e=>{if(!isDragging)return;currentX=prevX+(getX(e)-dragStart)},{passive:true});
-  window.addEventListener('touchend',()=>{if(!isDragging)return;isDragging=false;prevX=currentX=clampLoop(currentX)});
-  function easedJump(delta){
-    autoOn=false;cancelAnimationFrame(rafId);
-    const start=currentX,target=clampLoop(currentX+delta),dur=500;let t0=null;
-    function step(ts){if(!t0)t0=ts;const p=Math.min((ts-t0)/dur,1),ease=1-Math.pow(1-p,4);currentX=start+(target-start)*ease;setX(currentX);if(p<1){rafId=requestAnimationFrame(step);}else{currentX=prevX=clampLoop(currentX);setTimeout(()=>{autoOn=true;rafId=requestAnimationFrame(loop);},1800);}}
-    rafId=requestAnimationFrame(step);
+
+  var CARD_W=440,GAP=28;
+  var AUTO_SPEED=0.75;   /* px per frame — slightly faster auto-drift */
+  var LERP=0.055;        /* lower = silkier/floatier easing */
+  var FRICTION=0.92;     /* momentum friction after drag release */
+
+  var pos=0;             /* rendered position (lerped) */
+  var dest=0;            /* destination position */
+  var vel=0;             /* post-drag inertia velocity */
+  var paused=false;      /* hover pause */
+  var dragging=false;
+  var dragLastX=0,dragVelX=0;
+  var resumeTimer=null;
+  var autoOn=true;
+
+  function hw(){return track.scrollWidth/2}
+
+  /* keep dest in the seamless loop band */
+  function wrapDest(){
+    var h=hw();
+    while(dest<=-h)dest+=h;
+    while(dest>0) dest-=h;
   }
-  nextBtn.addEventListener('click',()=>easedJump(-(CARD_W+GAP)));
-  prevBtn.addEventListener('click',()=>easedJump(+(CARD_W+GAP)));
-  rafId=requestAnimationFrame(loop);
+  /* same wrap applied to both pos+dest together (no visual jump) */
+  function syncWrap(){
+    var h=hw();
+    if(pos<=-h){pos+=h;dest+=h}
+    if(pos>0)  {pos-=h;dest-=h}
+  }
+
+  function render(){track.style.transform='translateX('+pos.toFixed(3)+'px)'}
+
+  function getX(e){return e.touches?e.touches[0].clientX:e.clientX}
+
+  function loop(){
+    if(!dragging){
+      /* auto-drift */
+      if(autoOn&&!paused) dest-=AUTO_SPEED;
+      /* bleed in momentum */
+      dest+=vel;
+      vel*=FRICTION;
+      if(Math.abs(vel)<0.05)vel=0;
+    }
+    /* silky lerp render pos toward dest */
+    pos+=(dest-pos)*LERP;
+    /* wrap both together so the seam is invisible */
+    syncWrap();
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  /* hover */
+  trackWrap.addEventListener('mouseenter',function(){paused=true});
+  trackWrap.addEventListener('mouseleave',function(){paused=false});
+
+  /* drag */
+  trackWrap.addEventListener('mousedown',function(e){
+    dragging=true;dragLastX=getX(e);dragVelX=0;
+    dest=pos; /* lock dest to current so no lurch */
+    trackWrap.style.cursor='grabbing';
+    clearTimeout(resumeTimer);autoOn=false;vel=0;
+  });
+  window.addEventListener('mousemove',function(e){
+    if(!dragging)return;
+    var dx=getX(e)-dragLastX;
+    dragVelX=dx; dragLastX=getX(e);
+    dest+=dx; pos+=dx; /* move both so lerp doesn't fight */
+  });
+  window.addEventListener('mouseup',function(){
+    if(!dragging)return;
+    dragging=false;trackWrap.style.cursor='grab';
+    vel=dragVelX*0.55;
+    resumeTimer=setTimeout(function(){autoOn=true},2000);
+  });
+
+  /* touch */
+  trackWrap.addEventListener('touchstart',function(e){
+    dragging=true;dragLastX=getX(e);dragVelX=0;
+    dest=pos;clearTimeout(resumeTimer);autoOn=false;vel=0;
+  },{passive:true});
+  window.addEventListener('touchmove',function(e){
+    if(!dragging)return;
+    var dx=getX(e)-dragLastX;
+    dragVelX=dx;dragLastX=getX(e);
+    dest+=dx;pos+=dx;
+  },{passive:true});
+  window.addEventListener('touchend',function(){
+    if(!dragging)return;
+    dragging=false;vel=dragVelX*0.55;
+    resumeTimer=setTimeout(function(){autoOn=true},2000);
+  });
+
+  /* buttons — smooth eased jump via dest, lerp handles the glide */
+  function jump(delta){
+    clearTimeout(resumeTimer);autoOn=false;vel=0;
+    dest+=delta;
+    wrapDest();
+    resumeTimer=setTimeout(function(){autoOn=true},2000);
+  }
+  nextBtn.addEventListener('click',function(){jump(-(CARD_W+GAP))});
+  prevBtn.addEventListener('click',function(){jump(+(CARD_W+GAP))});
+
+  loop();
 })();
 
 /* ═══ PROGRAM POPUP ═══ */
-const progData=[
-  {img:'https://picsum.photos/seed/coral-garden-tropical-bright/900/500',badge:'Active',badgeClass:'ph-badge-active',title:'Coral Guardians Program',desc:'Restoring 500 hectares of degraded coral reefs across the Indo-Pacific using advanced micro-fragmentation techniques and assisted gene-flow methods. Our nurseries have grown over 120,000 coral fragments to date, with a 78% survival rate in transplanted sites.',stats:[{n:'500',l:'Hectares Target'},{n:'120K',l:'Coral Fragments'},{n:'78%',l:'Survival Rate'}]},
-  {img:'https://picsum.photos/seed/deep-sea-submarine-dark-blue/900/500',badge:'Exploring',badgeClass:'ph-badge-explore',title:'Abyssal Frontier Expedition',desc:'Mapping unexplored deep-sea trenches and hydrothermal vents at depths exceeding 8,000 metres using autonomous ROVs. This expedition has already discovered 12 new bioluminescent species previously unknown to science.',stats:[{n:'8,000m',l:'Max Depth'},{n:'12',l:'New Species'},{n:'3',l:'ROV Deployed'}]},
-  {img:'https://picsum.photos/seed/ocean-plastic-waste-cleanup-boat/900/500',badge:'Scaling',badgeClass:'ph-badge-scale',title:'Blue Clean Initiative',desc:'Deploying a fleet of 14 autonomous cleanup vessels across Southeast Asian waters. Combined with 200+ community collection points, the program has removed over 4,800 tonnes of ocean plastic to date.',stats:[{n:'4,800T',l:'Plastic Removed'},{n:'14',l:'Cleanup Vessels'},{n:'200+',l:'Collection Points'}]},
-  {img:'https://picsum.photos/seed/mangrove-coast-tropical-green-aerial/900/500',badge:'Active',badgeClass:'ph-badge-active',title:'Mangrove Shield Project',desc:'Replanting 200km of mangrove coastline across West Africa. These coastal forests serve as natural storm barriers, fishery nurseries, and sequester carbon at rates 5× higher than terrestrial forests.',stats:[{n:'200km',l:'Coastline'},{n:'5×',l:'Carbon Rate'},{n:'3.2M',l:'Trees Planted'}]},
-  {img:'https://picsum.photos/seed/whale-ocean-surface-blue-sunset/900/500',badge:'New',badgeClass:'ph-badge-new',title:'Cetacean Sanctuary Network',desc:'Creating safe migration corridors for whales and dolphins across the South Pacific. Using AI acoustic monitoring to reduce ship-strikes and chronic ocean noise by 60% in protected zones.',stats:[{n:'60%',l:'Noise Reduction'},{n:'24',l:'Species Protected'},{n:'12',l:'Corridors Created'}]},
-  {img:'https://picsum.photos/seed/seagrass-underwater-light-green/900/500',badge:'Active',badgeClass:'ph-badge-active',title:'Seagrass Meadow Recovery',desc:'Seagrass meadows sequester carbon 35× faster than tropical rainforests. Our teams are replanting 1,200 hectares across the Mediterranean coast, restoring critical fish nursery habitats.',stats:[{n:'1,200',l:'Hectares'},{n:'35×',l:'Carbon vs Forest'},{n:'84',l:'Species Benefited'}]},
+var progData=[
+  {img:'https://picsum.photos/seed/coral-garden-tropical-bright/900/500',badge:'Active',badgeClass:'ph-badge-active',title:'Coral Guardians Program',desc:'Restoring 500 hectares of degraded coral reefs across the Indo-Pacific using advanced micro-fragmentation techniques.',stats:[{n:'500',l:'Hectares'},{n:'120K',l:'Fragments'},{n:'78%',l:'Survival'}]},
+  {img:'https://picsum.photos/seed/deep-sea-submarine-dark-blue/900/500',badge:'Exploring',badgeClass:'ph-badge-explore',title:'Abyssal Frontier Expedition',desc:'Mapping unexplored deep-sea trenches at depths exceeding 8,000 metres using autonomous ROVs.',stats:[{n:'8,000m',l:'Max Depth'},{n:'12',l:'New Species'},{n:'3',l:'ROVs'}]},
+  {img:'https://picsum.photos/seed/ocean-plastic-waste-cleanup-boat/900/500',badge:'Scaling',badgeClass:'ph-badge-scale',title:'Blue Clean Initiative',desc:'Deploying autonomous cleanup vessels across Southeast Asian waters.',stats:[{n:'4,800T',l:'Removed'},{n:'14',l:'Vessels'},{n:'200+',l:'Points'}]},
+  {img:'https://picsum.photos/seed/mangrove-coast-tropical-green-aerial/900/500',badge:'Active',badgeClass:'ph-badge-active',title:'Mangrove Shield Project',desc:'Replanting 200km of mangrove coastline across West Africa.',stats:[{n:'200km',l:'Coastline'},{n:'5x',l:'Carbon'},{n:'3.2M',l:'Trees'}]},
+  {img:'https://picsum.photos/seed/whale-ocean-surface-blue-sunset/900/500',badge:'New',badgeClass:'ph-badge-new',title:'Cetacean Sanctuary Network',desc:'Creating safe migration corridors for whales and dolphins.',stats:[{n:'60%',l:'Noise Cut'},{n:'24',l:'Species'},{n:'12',l:'Corridors'}]},
+  {img:'https://picsum.photos/seed/seagrass-underwater-light-green/900/500',badge:'Active',badgeClass:'ph-badge-active',title:'Seagrass Meadow Recovery',desc:'Replanting 1,200 hectares of seagrass across the Mediterranean.',stats:[{n:'1,200',l:'Hectares'},{n:'35x',l:'vs Forest'},{n:'84',l:'Species'}]}
 ];
-function openProgPopup(i){
-  const d=progData[i];
-  document.getElementById('ppImg').src=d.img;
-  document.getElementById('ppBadge').className='prog-popup-badge '+d.badgeClass;
-  document.getElementById('ppBadge').textContent=d.badge;
-  document.getElementById('ppTitle').textContent=d.title;
-  document.getElementById('ppDesc').textContent=d.desc;
-  document.getElementById('ppStats').innerHTML=d.stats.map(s=>`<div class="prog-popup-stat"><div class="prog-popup-stat-n">${s.n}</div><div class="prog-popup-stat-l">${s.l}</div></div>`).join('');
-  document.getElementById('progPopup').classList.add('open');
-}
-document.getElementById('progPopupClose').addEventListener('click',()=>document.getElementById('progPopup').classList.remove('open'));
-document.getElementById('progPopupBg').addEventListener('click',()=>document.getElementById('progPopup').classList.remove('open'));
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.getElementById('progPopup').classList.remove('open');document.getElementById('ppOverlay').classList.remove('open');}});
+function openProgPopup(i){var d=progData[i];document.getElementById('ppImg').src=d.img;document.getElementById('ppBadge').className='prog-popup-badge '+d.badgeClass;document.getElementById('ppBadge').textContent=d.badge;document.getElementById('ppTitle').textContent=d.title;document.getElementById('ppDesc').textContent=d.desc;document.getElementById('ppStats').innerHTML=d.stats.map(function(s){return '<div class="prog-popup-stat"><div class="prog-popup-stat-n">'+s.n+'</div><div class="prog-popup-stat-l">'+s.l+'</div></div>'}).join('');document.getElementById('progPopup').classList.add('open')}
+document.getElementById('progPopupClose').addEventListener('click',function(){document.getElementById('progPopup').classList.remove('open')});
+document.getElementById('progPopupBg').addEventListener('click',function(){document.getElementById('progPopup').classList.remove('open')});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){document.getElementById('progPopup').classList.remove('open');document.getElementById('ppOverlay').classList.remove('open')}});
 
-/* ═══ 3D PARTNER GLOBE — FIXED SEPARATE LOGOS ═══ */
+/* ═══ 3D PARTNER GLOBE ═══ */
 (function(){
-  const scene=document.getElementById('globeScene'),dotsLayer=document.getElementById('globeDots'),canvas=document.getElementById('globe-canvas');
+  var scene=document.getElementById('globeScene'),dotsLayer=document.getElementById('globeDots'),canvas=document.getElementById('globe-canvas');
   if(!scene)return;
-  const ctx=canvas.getContext('2d');
-
-  /*
-    ╔══════════════════════════════════════════════════════════╗
-    ║  PARTNER LOGO PATHS                                     ║
-    ║  Replace these with your actual uploaded logos           ║
-    ║  e.g. "../uploads/partners/unesco-logo.png"             ║
-    ╚══════════════════════════════════════════════════════════╝
-  */
-  const partners=[
-    {name:'UNESCO',logo:'../uploads/partners/unesco-logo.png',color:'#1a6bc4',type:'UN Agency',desc:'Advancing ocean literacy and marine heritage protection across 190+ nations through science and education.',tags:['Education','Policy','Heritage'],
-      /* ★ EVENLY DISTRIBUTED coordinates — no overlaps ★ */
-      lat:55, lon:10},
-    {name:'IUCN',logo:'../uploads/partners/iucn-logo.png',color:'#e65100',type:'Conservation',desc:'Setting the gold standard for nature protection with the Red List of Threatened Species and marine protected area guidelines.',tags:['Red List','Policy','MPAs'],
-      lat:40, lon:140},
-    {name:'WWF',logo:'../uploads/partners/wwf-logo.png',color:'#1b5e20',type:'NGO',desc:"The world's leading conservation organization working in nearly 100 countries to protect wildlife and natural environments.",tags:['Wildlife','Climate','Ocean'],
-      lat:25, lon:-80},
-    {name:'NOAA',logo:'../uploads/partners/noaa-logo.png',color:'#0d47a1',type:'Government',desc:'Studying the oceans and atmosphere, providing vital satellite data for marine conservation and weather forecasting globally.',tags:['Research','Data','Forecasting'],
-      lat:35, lon:120},
-    {name:'UNEP',logo:'../uploads/partners/unep-logo.png',color:'#004d40',type:'UN Agency',desc:'The leading global environment authority, promoting sustainable ocean governance and co-leading the Clean Seas campaign.',tags:['Environment','Clean Seas','SDGs'],
-      lat:5, lon:45},
-    {name:'Smithsonian',logo:'../uploads/partners/smithsonian-logo.png',color:'#6a1b9a',type:'Research',desc:"Curating the world's largest marine biodiversity archive and co-hosting ocean exhibitions reaching 30M visitors annually.",tags:['Research','Museum','Archive'],
-      lat:58, lon:-50},
-    {name:'MSC',logo:'../uploads/partners/msc-logo.png',color:'#0b6e8c',type:'Certification',desc:"The world's leading certification program for sustainable wild-capture fisheries, ensuring ocean-friendly seafood.",tags:['Fisheries','Sustainability','Certification'],
-      lat:-25, lon:-45},
-    {name:'MBARI',logo:'../uploads/partners/mbari-logo.png',color:'#37474f',type:'Research',desc:'Pioneering deep-sea technology and research from Monterey Bay, operating autonomous underwater vehicles for ocean exploration.',tags:['Deep Sea','Technology','ROV'],
-      lat:8, lon:105},
-    {name:'Cousteau',logo:'../uploads/partners/cousteau-logo.png',color:'#b71c1c',type:'Foundation',desc:"Carrying on Jacques Cousteau's legacy of ocean exploration, education, and protection for future generations.",tags:['Exploration','Legacy','Film'],
-      lat:-32, lon:25},
-    {name:'GEF',logo:'../uploads/partners/gef-logo.png',color:'#f57f17',type:'Finance',desc:'Financing ocean protection projects in developing countries at critical marine biodiversity hotspots worldwide.',tags:['Finance','Biodiversity','Developing'],
-      lat:18, lon:-130},
-    {name:'AIMS',logo:'../uploads/partners/aims-logo.png',color:'#1a237e',type:'Research',desc:'World-class tropical marine research on the Great Barrier Reef and Indo-Pacific, advancing coral reef science for 50 years.',tags:['Reef','Tropical','GBR'],
-      lat:-22, lon:150},
-    {name:'OceanX',logo:'../uploads/partners/oceanx-logo.png',color:'#4a148c',type:'Exploration',desc:'Bringing the ocean to the world through exploration, media, and science aboard the state-of-the-art vessel OceanXplorer.',tags:['Exploration','Media','Science'],
-      lat:65, lon:-20},
+  var ctx=canvas.getContext('2d');
+  var partners=[
+    {name:'UNESCO',logo:'<?= BASE_URL ?>uploads/partners/unesco-logo.png',color:'#1a6bc4',type:'UN Agency',desc:'Advancing ocean literacy and marine heritage protection across 190+ nations.',tags:['Education','Policy','Heritage'],lat:55,lon:10},
+    {name:'IUCN',logo:'<?= BASE_URL ?>uploads/partners/iucn-logo.png',color:'#e65100',type:'Conservation',desc:'Setting the gold standard for nature protection.',tags:['Red List','Policy','MPAs'],lat:40,lon:140},
+    {name:'WWF',logo:'<?= BASE_URL ?>uploads/partners/wwf-logo.png',color:'#1b5e20',type:'NGO',desc:"The world's leading conservation organization.",tags:['Wildlife','Climate','Ocean'],lat:25,lon:-80},
+    {name:'NOAA',logo:'<?= BASE_URL ?>uploads/partners/noaa-logo.png',color:'#0d47a1',type:'Government',desc:'Studying oceans and atmosphere with vital satellite data.',tags:['Research','Data','Forecasting'],lat:35,lon:120},
+    {name:'UNEP',logo:'<?= BASE_URL ?>uploads/partners/unep-logo.png',color:'#004d40',type:'UN Agency',desc:'Leading global environment authority, Clean Seas campaign.',tags:['Environment','Clean Seas','SDGs'],lat:5,lon:45},
+    {name:'Smithsonian',logo:'<?= BASE_URL ?>uploads/partners/smithsonian-logo.png',color:'#6a1b9a',type:'Research',desc:"Curating the world's largest marine biodiversity archive.",tags:['Research','Museum','Archive'],lat:58,lon:-50},
+    {name:'MSC',logo:'<?= BASE_URL ?>uploads/partners/msc-logo.png',color:'#0b6e8c',type:'Certification',desc:"Leading certification for sustainable fisheries.",tags:['Fisheries','Sustainability'],lat:-25,lon:-45},
+    {name:'MBARI',logo:'<?= BASE_URL ?>uploads/partners/mbari-logo.png',color:'#37474f',type:'Research',desc:'Pioneering deep-sea technology from Monterey Bay.',tags:['Deep Sea','Technology','ROV'],lat:8,lon:105},
+    {name:'Cousteau',logo:'<?= BASE_URL ?>uploads/partners/cousteau-logo.png',color:'#b71c1c',type:'Foundation',desc:"Carrying on Jacques Cousteau's legacy.",tags:['Exploration','Legacy','Film'],lat:-32,lon:25},
+    {name:'GEF',logo:'<?= BASE_URL ?>uploads/partners/gef-logo.png',color:'#f57f17',type:'Finance',desc:'Financing ocean protection in developing countries.',tags:['Finance','Biodiversity'],lat:18,lon:-130},
+    {name:'AIMS',logo:'<?= BASE_URL ?>uploads/partners/aims-logo.png',color:'#1a237e',type:'Research',desc:'World-class tropical marine research on the GBR.',tags:['Reef','Tropical','GBR'],lat:-22,lon:150},
+    {name:'OceanX',logo:'<?= BASE_URL ?>uploads/partners/oceanx-logo.png',color:'#4a148c',type:'Exploration',desc:'Bringing the ocean to the world through exploration.',tags:['Exploration','Media','Science'],lat:65,lon:-20}
   ];
-
-  function ll2xyz(lat,lon,r=1){const p=(90-lat)*Math.PI/180,t=(lon+180)*Math.PI/180;return{x:-r*Math.sin(p)*Math.cos(t),y:r*Math.cos(p),z:r*Math.sin(p)*Math.sin(t)};}
-  let rotX=.25,rotY=0,velX=0,velY=.004,dragging=false,lmx=0,lmy=0;
-  const R=scene.offsetWidth/2;
-
-  function drawGrid(){
-    const w=canvas.width=scene.offsetWidth,h=canvas.height=scene.offsetHeight,cx=w/2,cy=h/2,r=R;
-    ctx.clearRect(0,0,w,h);
-    const atm=ctx.createRadialGradient(cx,cy,r*.9,cx,cy,r*1.1);
-    atm.addColorStop(0,'rgba(56,189,248,0.18)');atm.addColorStop(1,'transparent');
-    ctx.beginPath();ctx.arc(cx,cy,r*1.1,0,Math.PI*2);ctx.fillStyle=atm;ctx.fill();
-    const bg=ctx.createRadialGradient(cx-r*.32,cy-r*.32,r*.04,cx,cy,r);
-    bg.addColorStop(0,'rgba(255,255,255,0.98)');bg.addColorStop(.35,'rgba(224,246,255,0.95)');bg.addColorStop(.72,'rgba(125,211,252,0.92)');bg.addColorStop(1,'rgba(14,165,201,0.96)');
-    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fillStyle=bg;ctx.fill();
-    const sp=ctx.createRadialGradient(cx-r*.28,cy-r*.3,0,cx-r*.1,cy-r*.1,r*.55);
-    sp.addColorStop(0,'rgba(255,255,255,0.55)');sp.addColorStop(.6,'rgba(255,255,255,0.1)');sp.addColorStop(1,'transparent');
-    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fillStyle=sp;ctx.fill();
-    ctx.save();ctx.beginPath();ctx.arc(cx,cy,r-1,0,Math.PI*2);ctx.clip();
-    for(let lat=-60;lat<=60;lat+=30){ctx.beginPath();ctx.strokeStyle='rgba(11,94,138,0.15)';ctx.lineWidth=1;const pts=[];for(let lon=0;lon<=360;lon+=5){let v=ll2xyz(lat,lon,1);v=rY(v,rotY);v=rX(v,rotX);pts.push({x:cx+v.x*r*.88,y:cy-v.y*r*.88,z:v.z});}pts.forEach((p,i)=>{if(p.z>-.05){if(i===0||pts[i-1].z<=-.05)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}});ctx.stroke();}
-    for(let lon=0;lon<360;lon+=30){ctx.beginPath();ctx.strokeStyle='rgba(11,94,138,0.15)';ctx.lineWidth=1;const pts=[];for(let lat=-90;lat<=90;lat+=5){let v=ll2xyz(lat,lon,1);v=rY(v,rotY);v=rX(v,rotX);pts.push({x:cx+v.x*r*.88,y:cy-v.y*r*.88,z:v.z});}pts.forEach((p,i)=>{if(p.z>-.05){if(i===0||pts[i-1].z<=-.05)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}});ctx.stroke();}
-    ctx.restore();
-    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle='rgba(14,165,201,0.4)';ctx.lineWidth=1.5;ctx.stroke();
-  }
-
-  function rX(v,a){const c=Math.cos(a),s=Math.sin(a);return{x:v.x,y:v.y*c-v.z*s,z:v.y*s+v.z*c};}
-  function rY(v,a){const c=Math.cos(a),s=Math.sin(a);return{x:v.x*c+v.z*s,y:v.y,z:-v.x*s+v.z*c};}
-
-  /* ★ Create dots as separate card-style logo containers ★ */
-  const dots=partners.map(p=>{
-    const el=document.createElement('div');el.className='globe-dot';
-    el.innerHTML=`<div class="globe-dot-inner" style="background:#fff"><img src="${p.logo}" alt="${p.name}" onerror="this.style.display='none';this.parentNode.innerHTML='<span style=\\'font-size:12px;font-weight:700;color:${p.color}\\'>${p.name.substring(0,2).toUpperCase()}</span>'"></div>`;
-    el.addEventListener('click',e=>{e.stopPropagation();openPP(p);});
-    dotsLayer.appendChild(el);
-    return{el,p,pos:ll2xyz(p.lat,p.lon,1)};
-  });
-
-  function updateDots(){
-    const cx=R,cy=R;
-    dots.forEach(({el,pos})=>{
-      let v=rY(pos,rotY);v=rX(v,rotX);
-      const sc=.5+.5*((v.z+1)/2);
-      const isFront = v.z > 0.05;
-
-      el.style.left=(cx+v.x*R*.88)+'px';
-      el.style.top=(cy-v.y*R*.88)+'px';
-
-      if(isFront){
-        el.style.zIndex=10;
-        el.style.opacity='1';
-        el.style.pointerEvents='auto';
-        el.style.transform=`translate(-50%,-50%) scale(${sc.toFixed(3)})`;
-        el.classList.remove('back');
-      } else {
-        /* ★ COMPLETELY hidden — no ghosted logos behind the globe ★ */
-        el.style.zIndex=0;
-        el.style.opacity='0';
-        el.style.pointerEvents='none';
-        el.style.transform=`translate(-50%,-50%) scale(0.3)`;
-        el.classList.add('back');
-      }
-    });
-  }
-
-  function animate(){
-    if(!dragging){rotY+=velY;rotX+=velX;velX*=.97;if(Math.abs(velY)<.002)velY=.004;}
-    drawGrid();updateDots();requestAnimationFrame(animate);
-  }
-
-  scene.addEventListener('mousedown',e=>{dragging=true;lmx=e.clientX;lmy=e.clientY;velX=0;velY=0;});
-  window.addEventListener('mousemove',e=>{if(!dragging)return;const dx=e.clientX-lmx,dy=e.clientY-lmy;rotY+=dx*.007;rotX+=dy*.007;velY=dx*.007;velX=dy*.007;lmx=e.clientX;lmy=e.clientY;});
-  window.addEventListener('mouseup',()=>{dragging=false;});
-  scene.addEventListener('touchstart',e=>{dragging=true;const t=e.touches[0];lmx=t.clientX;lmy=t.clientY;velX=0;velY=0;},{passive:true});
-  window.addEventListener('touchmove',e=>{if(!dragging)return;const t=e.touches[0],dx=t.clientX-lmx,dy=t.clientY-lmy;rotY+=dx*.007;rotX+=dy*.007;velY=dx*.007;velX=dy*.007;lmx=t.clientX;lmy=t.clientY;},{passive:true});
-  window.addEventListener('touchend',()=>{dragging=false;});
-
+  function ll2xyz(lat,lon,r){r=r||1;var p=(90-lat)*Math.PI/180,t=(lon+180)*Math.PI/180;return{x:-r*Math.sin(p)*Math.cos(t),y:r*Math.cos(p),z:r*Math.sin(p)*Math.sin(t)}}
+  var rotX=.25,rotY=0,velX=0,velY=.004,dragging=false,lmx=0,lmy=0,R=scene.offsetWidth/2;
+  function drawGrid(){var w=canvas.width=scene.offsetWidth,h=canvas.height=scene.offsetHeight,cx=w/2,cy=h/2,r=R;ctx.clearRect(0,0,w,h);var bg=ctx.createRadialGradient(cx-r*.32,cy-r*.32,r*.04,cx,cy,r);bg.addColorStop(0,'rgba(255,255,255,0.98)');bg.addColorStop(.35,'rgba(224,246,255,0.95)');bg.addColorStop(.72,'rgba(125,211,252,0.92)');bg.addColorStop(1,'rgba(14,165,201,0.96)');ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fillStyle=bg;ctx.fill();ctx.save();ctx.beginPath();ctx.arc(cx,cy,r-1,0,Math.PI*2);ctx.clip();for(var lat=-60;lat<=60;lat+=30){ctx.beginPath();ctx.strokeStyle='rgba(11,94,138,0.15)';ctx.lineWidth=1;var pts=[];for(var lon=0;lon<=360;lon+=5){var v=ll2xyz(lat,lon,1);v=rY(v,rotY);v=rX(v,rotX);pts.push({x:cx+v.x*r*.88,y:cy-v.y*r*.88,z:v.z})}pts.forEach(function(p,i){if(p.z>-.05){if(i===0||pts[i-1].z<=-.05)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y)}});ctx.stroke()}for(var lon2=0;lon2<360;lon2+=30){ctx.beginPath();ctx.strokeStyle='rgba(11,94,138,0.15)';ctx.lineWidth=1;var pts2=[];for(var lat2=-90;lat2<=90;lat2+=5){var v2=ll2xyz(lat2,lon2,1);v2=rY(v2,rotY);v2=rX(v2,rotX);pts2.push({x:cx+v2.x*r*.88,y:cy-v2.y*r*.88,z:v2.z})}pts2.forEach(function(p,i){if(p.z>-.05){if(i===0||pts2[i-1].z<=-.05)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y)}});ctx.stroke()}ctx.restore();ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle='rgba(14,165,201,0.4)';ctx.lineWidth=1.5;ctx.stroke()}
+  function rX(v,a){var c=Math.cos(a),s=Math.sin(a);return{x:v.x,y:v.y*c-v.z*s,z:v.y*s+v.z*c}}
+  function rY(v,a){var c=Math.cos(a),s=Math.sin(a);return{x:v.x*c+v.z*s,y:v.y,z:-v.x*s+v.z*c}}
+  var dots=partners.map(function(p){var el=document.createElement('div');el.className='globe-dot';el.innerHTML='<div class="globe-dot-inner" style="background:#fff"><img src="'+p.logo+'" alt="'+p.name+'" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'<span style=\\\'font-size:12px;font-weight:700;color:'+p.color+'\\\'>'+p.name.substring(0,2)+'</span>\'"></div>';el.addEventListener('click',function(e){e.stopPropagation();openPP(p)});dotsLayer.appendChild(el);return{el:el,p:p,pos:ll2xyz(p.lat,p.lon,1)}});
+  function updateDots(){var cx=R,cy=R;dots.forEach(function(d){var v=rY(d.pos,rotY);v=rX(v,rotX);var sc=.5+.5*((v.z+1)/2);var isFront=v.z>0.05;d.el.style.left=(cx+v.x*R*.88)+'px';d.el.style.top=(cy-v.y*R*.88)+'px';if(isFront){d.el.style.zIndex=10;d.el.style.opacity='1';d.el.style.pointerEvents='auto';d.el.style.transform='translate(-50%,-50%) scale('+sc.toFixed(3)+')';d.el.classList.remove('back')}else{d.el.style.zIndex=0;d.el.style.opacity='0';d.el.style.pointerEvents='none';d.el.style.transform='translate(-50%,-50%) scale(0.3)';d.el.classList.add('back')}})}
+  function animate(){if(!dragging){rotY+=velY;rotX+=velX;velX*=.97;if(Math.abs(velY)<.002)velY=.004}drawGrid();updateDots();requestAnimationFrame(animate)}
+  scene.addEventListener('mousedown',function(e){dragging=true;lmx=e.clientX;lmy=e.clientY;velX=0;velY=0});
+  window.addEventListener('mousemove',function(e){if(!dragging)return;var dx=e.clientX-lmx,dy=e.clientY-lmy;rotY+=dx*.007;rotX+=dy*.007;velY=dx*.007;velX=dy*.007;lmx=e.clientX;lmy=e.clientY});
+  window.addEventListener('mouseup',function(){dragging=false});
+  scene.addEventListener('touchstart',function(e){dragging=true;var t=e.touches[0];lmx=t.clientX;lmy=t.clientY;velX=0;velY=0},{passive:true});
+  window.addEventListener('touchmove',function(e){if(!dragging)return;var t=e.touches[0],dx=t.clientX-lmx,dy=t.clientY-lmy;rotY+=dx*.007;rotX+=dy*.007;velY=dx*.007;velX=dy*.007;lmx=t.clientX;lmy=t.clientY},{passive:true});
+  window.addEventListener('touchend',function(){dragging=false});
   animate();
-
-  function openPP(p){
-    document.getElementById('ppLogo').style.background='#fff';
-    document.getElementById('ppLogo').innerHTML=`<img src="${p.logo}" alt="${p.name}" onerror="this.style.display='none'">`;
-    document.getElementById('ppName').textContent=p.name;
-    document.getElementById('ppType').textContent=p.type;
-    document.getElementById('ppDesc').textContent=p.desc;
-    document.getElementById('ppTags').innerHTML=p.tags.map(t=>`<span class="pp-tag">${t}</span>`).join('');
-    document.getElementById('ppOverlay').classList.add('open');
-  }
-  document.getElementById('ppClose').addEventListener('click',()=>document.getElementById('ppOverlay').classList.remove('open'));
-  document.getElementById('ppBg').addEventListener('click',()=>document.getElementById('ppOverlay').classList.remove('open'));
+  function openPP(p){document.getElementById('ppLogo').style.background='#fff';document.getElementById('ppLogo').innerHTML='<img src="'+p.logo+'" alt="'+p.name+'" onerror="this.style.display=\'none\'">';document.getElementById('ppName').textContent=p.name;document.getElementById('ppType').textContent=p.type;document.getElementById('ppDesc2').textContent=p.desc;document.getElementById('ppTags').innerHTML=p.tags.map(function(t){return '<span class="pp-tag">'+t+'</span>'}).join('');document.getElementById('ppOverlay').classList.add('open')}
+  document.getElementById('ppClose').addEventListener('click',function(){document.getElementById('ppOverlay').classList.remove('open')});
+  document.getElementById('ppBg').addEventListener('click',function(){document.getElementById('ppOverlay').classList.remove('open')});
 })();
 
 /* ═══ TOAST ═══ */
-function showToast(m){const t=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3600);}
+function showToast(m){var t=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},3600)}
 </script>
 </body>
 </html>
